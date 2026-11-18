@@ -47,7 +47,7 @@ while (!ended && frames < 60 * 60 * 30) {
       if (world.touchGoal(r.b)) { r.done = true; M.handle(r.pid, { t: 'fin', res: { goal: true } }); continue; }
       if (frames % 10 === 0) M.onHeat(Math.floor((r.b.x + 5) / TILE), Math.floor((r.b.y + 10) / TILE), r.pid);
     }
-    world.updateCrumble(DT, run.bodies.map((r) => r.b));
+    world.updateDynamic(DT, t, run.bodies.map((r) => r.b));
   }
 }
 console.log('items', world.items.size, 'sim time', ((performance.now() - tStart) / 1000).toFixed(1) + 's', 'game min', (frames / 3600).toFixed(1));

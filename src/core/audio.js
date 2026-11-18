@@ -75,6 +75,8 @@ const SFX = {
   death: () => { osc('p25', 600, 80, 0.4, 0.3); noise(0.3, 0.3, 2000, 0, 'lowpass', 200); },
   goal: () => { [72, 76, 79, 84].forEach((n, i) => osc('p25', mtof(n), mtof(n), 0.16, 0.25, i * 0.07)); },
   arrow: () => noise(0.08, 0.18, 6000, 0, 'highpass'),
+  cannon: () => { noise(0.25, 0.4, 900, 0, 'lowpass', 120); osc('sine', 140, 50, 0.2, 0.35); },
+  slam: () => { noise(0.18, 0.45, 600, 0, 'lowpass', 90); osc('square', 90, 40, 0.15, 0.25); },
   flame: () => noise(0.35, 0.18, 800, 0, 'bandpass', 300),
   laser: () => { osc('sawtooth', 1400, 300, 0.25, 0.12); },
   charge: () => osc('sine', 300, 1200, 0.45, 0.08),

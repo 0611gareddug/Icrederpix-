@@ -46,7 +46,7 @@ export function showTitle(app) {
   const el = h('div', { class: 'screen title-screen', onclick: go },
     h('div', { class: 'logo' }, h('div', { class: 'en' }, 'TRAP BUILDERS'), h('div', { class: 'ko' }, '트랩빌더즈')),
     h('div', { class: 'press' }, isTouch() ? '화면을 터치해서 시작' : '아무 키나 눌러서 시작'),
-    h('div', { class: 'ver' }, 'v1.1'));
+    h('div', { class: 'ver' }, 'v1.2'));
   const tb = topbar();
   tb.addEventListener('click', (e) => e.stopPropagation());
   el.append(tb);
@@ -346,7 +346,7 @@ function helpBody() {
     h('h4', null, '🎯 목표'),
     h('div', null, '매 라운드 ', h('b', null, '파티 상자'), '에서 아이템을 골라 맵에 놓고, 모두 함께 골 깃발까지 달려요. 먼저 목표 점수에 도달하면 우승!'),
     h('h4', null, '⭐ 점수'),
-    h('div', null, '골인 +10점 · 내가 놓은 함정에 다른 사람이 탈락하면 +3점', h('br'), '단, ', h('b', null, '전원 골인하면 모두 0점'), '이에요. 너무 쉬운 맵은 손해!'),
+    h('div', null, '골인 +5점 · 내가 놓은 함정에 다른 사람이 탈락하면 +2점', h('br'), '단, ', h('b', null, '전원 골인하면 모두 0점'), '이에요. 너무 쉬운 맵은 손해!'),
     h('h4', null, '🎮 조작'),
     t ? h('div', null, '왼쪽 화면: 조이스틱(이동 · 아래로 숙이기 · 위로 사다리)', h('br'), '오른쪽 버튼: 점프(길게 누르면 높이) · 대시 · 숙이기', h('br'), '배치: 손가락으로 끌어서 위치를 정하고 [놓기], 두 손가락으로 확대')
       : h('div', null, '이동 ', k('A'), k('D'), ' 또는 ', k('←'), k('→'), ' · 점프 ', k('스페이스'), k('W'), k('↑'), ' (길게 누르면 높이)', h('br'),

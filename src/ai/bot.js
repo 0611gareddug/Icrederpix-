@@ -2,6 +2,7 @@
 import { TILE, DT, rng, sign } from '../core/util.js';
 import { step, copyBody, NO_INPUT } from '../engine/physics.js';
 import { polInput, blankInput } from './navgraph.js';
+import { W } from '../engine/world.js';
 
 export const BOT_CFG = {
   easy:   { react: [16, 34], err: 0.24, jitter: 4, skip: 0.35, waitMax: 0.8, leapAfter: 6 },
@@ -94,8 +95,8 @@ export class Bot {
       let best = -1, bd = 99;
       for (let dx = -4; dx <= 4; dx++) {
         const x = tx + dx;
-        if (x < 0 || x >= 48) continue;
-        const id = graph.nodeAtCell[ty * 48 + x];
+        if (x < 0 || x >= W) continue;
+        const id = graph.nodeAtCell[ty * W + x];
         if (id >= 0 && Math.abs(dx) < bd) { bd = Math.abs(dx); best = id; }
       }
       if (best < 0 || this.progT > this.cfg.leapAfter) { this.progT = 0; this.leap(world, b); return inp; }

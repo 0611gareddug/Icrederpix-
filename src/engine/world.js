@@ -3,14 +3,15 @@ import { TILE, rectsOverlap, circleRect, mod } from '../core/util.js';
 import { ITEMS, itemCells, phaseOf } from '../data/items.js';
 import { MAPS } from '../data/maps.js';
 
-export const W = 48, H = 20;
+export const W = 72, H = 20;
 export const S_NONE = 0, S_SOLID = 1, S_ONEWAY = 2, S_LADTOP = 3;
-export const SF = { NONE: 0, ICE: 1, STICKY: 2, CONV_L: 3, CONV_R: 4, TRAMP_U: 5, TRAMP_R: 6, TRAMP_L: 7, CRUMBLE: 8, WOOD: 9, TERRAIN: 10 };
+export const SF = { NONE: 0, ICE: 1, STICKY: 2, CONV_L: 3, CONV_R: 4, TRAMP_U: 5, TRAMP_R: 6, TRAMP_L: 7, CRUMBLE: 8, WOOD: 9, TERRAIN: 10, CLOUD: 11, BOOST_R: 12, BOOST_L: 13, GHOST: 14, POISON: 15, STONE: 16 };
 export const T_EMPTY = 0, T_SOLID = 1, T_ONEWAY = 2, T_ICE = 3, T_LAVA = 4;
 export const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 export const ENV_KILL = -1;
 
 const ARROW_SPEED = 150;
+const BALL_SPEED = 72;
 
 export class World {
   constructor(mapKey) {
@@ -55,6 +56,8 @@ export class World {
     this.crS = new Uint8Array(W * H); // 0 정상 1 흔들림 2 부서짐
     this.crT = new Float32Array(W * H);
     this.version = 0;
+    this.mineT = new Map(); this.mineBoomed = new Set();
+    this.now = 0; this.staticMode = false; this.ignore = null;
     this.rebuild();
   }
 
@@ -74,6 +77,8 @@ export class World {
     this.spikes = []; this.saws = []; this.arrows = []; this.flames = [];
     this.maces = []; this.lasers = []; this.holes = []; this.movers = [];
     this.crumbles = [];
+    this.fans = []; this.ghosts = []; this.ghostAt = new Map(); this.webs = []; this.gravs = [];
+    this.cannons = []; this.crushers = []; this.poisons = []; this.sawrails = []; this.mines = [];
     for (const it of this.items.values()) {
       for (const [cx, cy] of itemCells(it.type, it.x, it.y, it.rot)) occ[cy * W + cx] = it.id;
       const i = it.y * W + it.x;
@@ -94,6 +99,18 @@ export class World {
         case 'mace': this.maces.push(it); break;
         case 'blackhole': this.holes.push(it); break;
         case 'movplat': this.movers.push(it); break;
+        case 'cloud': solid[i] = S_ONEWAY; surf[i] = SF.CLOUD; this.crumbles.push(i); break;
+        case 'booster': solid[i] = S_SOLID; surf[i] = it.rot === 1 ? SF.BOOST_R : SF.BOOST_L; break;
+        case 'lowgrav': this.gravs.push({ x: it.x * TILE, y: it.y * TILE, w: 48, h: 48 }); break;
+        case 'bigstone': for (const k of [0, 1, W, W + 1]) { solid[i + k] = S_SOLID; surf[i + k] = SF.STONE; } break;
+        case 'fan': solid[i] = S_SOLID; surf[i] = SF.WOOD; this.fans.push(it); break;
+        case 'ghost': solid[i] = S_SOLID; surf[i] = SF.GHOST; this.ghosts.push(it); this.ghostAt.set(i, it); break;
+        case 'web': this.webs.push({ x: it.x * TILE + 2, y: it.y * TILE + 2, w: 28, h: 28 }); break;
+        case 'cannon': solid[i] = S_SOLID; surf[i] = SF.WOOD; this.cannons.push(it); break;
+        case 'crusher': solid[i] = S_SOLID; surf[i] = SF.WOOD; this.crushers.push(it); break;
+        case 'poison': solid[i] = S_SOLID; surf[i] = SF.POISON; this.poisons.push(it); break;
+        case 'sawrail': this.sawrails.push(it); break;
+        case 'mine': this.mines.push(it); break;
       }
     }
     // 사다리 꼭대기는 한쪽 통과 발판처럼 동작
@@ -106,8 +123,11 @@ export class World {
     // 광선 길이 미리 계산
     for (const it of this.arrows) it.ray = this.ray(it.x, it.y, it.rot, 40) * TILE;
     for (const it of this.flames) it.ray = Math.min(3, this.ray(it.x, it.y, it.rot, 3)) * TILE;
-    for (const it of this.lasers) it.ray = this.ray(it.x, it.y, it.rot, 48) * TILE;
+    for (const it of this.lasers) it.ray = this.ray(it.x, it.y, it.rot, 20) * TILE;
     for (const ic of this.icicles) ic.fall = this.ray(ic.x, ic.y - 1, 2, 30) * TILE;
+    for (const it of this.fans) it.ray = this.ray(it.x, it.y, it.rot, 5) * TILE;
+    for (const it of this.cannons) it.ray = this.ray(it.x, it.y, it.rot, 24) * TILE;
+    for (const it of this.crushers) it.ray = Math.min(4, this.ray(it.x, it.y, 2, 4)) * TILE;
     for (const it of this.items.values()) if (it.phase === undefined) it.phase = phaseOf(it.id, it.type);
     // AI용 정적 위험 칸
     this.hazCell = new Uint8Array(W * H);
@@ -118,6 +138,7 @@ export class World {
     for (const it of this.spikes) mark(it.x, it.y, 1);
     for (const it of this.saws) mark(it.x, it.y, 1);
     for (const it of this.holes) mark(it.x, it.y, 1);
+    for (const it of this.poisons) mark(it.x, it.y, 1);
     this.version++;
   }
 
@@ -139,7 +160,14 @@ export class World {
     if (ty < 0 || ty >= H) return S_NONE;
     const i = ty * W + tx;
     const s = this.solid[i];
-    if (s && this.surf[i] === SF.CRUMBLE && this.crS[i] === 2) return S_NONE;
+    if (!s) return s;
+    const sf = this.surf[i];
+    if ((sf === SF.CRUMBLE || sf === SF.CLOUD) && this.crS[i] === 2) return S_NONE;
+    if (sf === SF.GHOST && !this.staticMode) {
+      if (!this.ghostSolid(this.ghostAt.get(i), this.now)) return S_NONE;
+      const r = this.ignore;
+      if (r && r.x < tx * TILE + 16 && r.x + r.w > tx * TILE && r.y < ty * TILE + 16 && r.y + r.h > ty * TILE) return S_NONE;
+    }
     return s;
   }
   surfAt(tx, ty) {
@@ -176,15 +204,15 @@ export class World {
   }
   flameState(it, t) {
     const p = mod(t + it.phase, 3);
-    return p >= 1.5 ? 2 : p >= 1.1 ? 1 : 0; // 2 분사, 1 예고
+    return p >= 1.5 ? 2 : p >= 0.9 ? 1 : 0; // 2 분사, 1 예고(0.6초)
   }
   laserState(it, t) {
-    const p = mod(t + it.phase, 3.5);
-    return p >= 2.5 ? 2 : p >= 2 ? 1 : 0;
+    const p = mod(t + it.phase, 3.7);
+    return p >= 2.8 ? 2 : p >= 2 ? 1 : 0; // 조준 0.8초, 발사 0.9초
   }
   maceBall(it, t) {
-    const a = (t + (it.phase || 0)) / 3 * Math.PI * 2;
-    return { x: it.x * TILE + 8 + Math.cos(a) * 40, y: it.y * TILE + 8 + Math.sin(a) * 40 };
+    const a = (t + (it.phase || 0)) / 4 * Math.PI * 2;
+    return { x: it.x * TILE + 8 + Math.cos(a) * 34, y: it.y * TILE + 8 + Math.sin(a) * 34 };
   }
   // 화살 목록 콜백 (x,y,w,h)
   forArrows(it, t, cb) {
@@ -201,6 +229,46 @@ export class World {
       if (dx) cb(dx > 0 ? hx - 9 : hx, hy - 1.5, 9, 3, dx, dy);
       else cb(hx - 1.5, dy > 0 ? hy - 9 : hy, 3, 9, dx, dy);
     }
+  }
+  // 화살 발사 직전 (발사기 깜빡임)
+  arrowWarn(it, t) { return mod(t - it.phase, 2) > 1.7; }
+  // 포탄 목록 콜백 (중심 x,y)
+  forBalls(it, t, cb) {
+    const tt = t - (it.phase || 0);
+    const travel = it.ray / BALL_SPEED;
+    const dx = it.rot === 1 ? 1 : -1;
+    const mx = it.x * TILE + 8 + dx * 8, my = it.y * TILE + 8;
+    const k1 = Math.floor(tt / 3), k0 = Math.floor((tt - travel) / 3);
+    for (let k = Math.max(0, k0); k <= k1; k++) {
+      const age = tt - k * 3;
+      if (age < 0 || age > travel) continue;
+      cb(mx + dx * age * BALL_SPEED, my, age);
+    }
+  }
+  cannonWarn(it, t) { return mod(t - (it.phase || 0), 3) > 2.6; }
+  ghostSolid(it, t) { return !it || mod(t + (it.phase || 0), 4) < 2; }
+  ghostWarn(it, t) { const p = mod(t + (it.phase || 0), 4); return p >= 1.5 && p < 2; }
+  // 쿵쿵이: 내려온 거리, 흔들림 여부
+  crusherState(it, t) {
+    const p = mod(t + (it.phase || 0), 3), L = it.ray || 0;
+    if (p < 1.4) return { d: 0, shake: false };
+    if (p < 1.8) return { d: 0, shake: true };
+    if (p < 2.05) { const k = (p - 1.8) / 0.25; return { d: L * k * k, fall: true }; }
+    if (p < 2.55) return { d: L, down: true };
+    return { d: L * (1 - (p - 2.55) / 0.45) };
+  }
+  sawRailPos(it, t) {
+    const off = 64 * (0.5 - 0.5 * Math.cos(((t + (it.phase || 0)) / 4) * Math.PI * 2));
+    return { x: it.x * TILE + 8 + (it.rot === 0 ? off : 0), y: it.y * TILE + 8 - (it.rot === 1 ? off : 0) };
+  }
+  mineState(it, t) {
+    const tr = this.mineT.get(it.id);
+    if (tr === undefined) return 0;
+    const a = t - tr;
+    if (a < 0.5) return 1; // 작동 중
+    if (a < 0.7) return 2; // 폭발
+    if (a < 3.5) return 3; // 재장전
+    return 0;
   }
   beamRect(it, len, wid) {
     const [dx, dy] = DIRS[it.rot];
@@ -238,8 +306,29 @@ export class World {
       if (rectsOverlap(bx, by, bw, bh, r[0], r[1], r[2], r[3])) return it.id;
     }
     for (const it of this.saws) if (circleRect(it.x * TILE + 8, it.y * TILE + 8, 6.5, bx, by, bw, bh)) return it.id;
-    for (const it of this.holes) if (circleRect(it.x * TILE + 8, it.y * TILE + 8, 4.5, bx, by, bw, bh)) return it.id;
+    for (const it of this.holes) if (circleRect(it.x * TILE + 8, it.y * TILE + 8, 4, bx, by, bw, bh)) return it.id;
+    for (const it of this.poisons) {
+      const x = it.x * TILE, y = it.y * TILE;
+      if (rectsOverlap(bx, by, bw, bh, x + 1, y - 1, 14, 18) || rectsOverlap(bx, by, bw, bh, x - 1, y + 1, 18, 14)) return it.id;
+    }
     if (staticOnly) return undefined;
+    for (const it of this.sawrails) {
+      const p = this.sawRailPos(it, t);
+      if (circleRect(p.x, p.y, 6.5, bx, by, bw, bh)) return it.id;
+    }
+    for (const it of this.crushers) {
+      const st = this.crusherState(it, t);
+      if (st.d > 2 && rectsOverlap(bx, by, bw, bh, it.x * TILE + 1, it.y * TILE + st.d, 14, 16)) return it.id;
+    }
+    for (const it of this.mines) {
+      if (this.mineState(it, t) === 2 && circleRect(it.x * TILE + 8, it.y * TILE + 13, 26, bx, by, bw, bh)) return it.id;
+    }
+    let ball;
+    for (const it of this.cannons) {
+      if (ball) break;
+      this.forBalls(it, t, (x, y) => { if (!ball && circleRect(x, y, 5, bx, by, bw, bh)) ball = it.id; });
+    }
+    if (ball) return ball;
     for (const it of this.maces) {
       const p = this.maceBall(it, t);
       if (circleRect(p.x, p.y, 6.5, bx, by, bw, bh)) return it.id;
@@ -276,17 +365,28 @@ export class World {
 
   // 무너지는 발판
   onStand(i) {
-    if (this.surf[i] === SF.CRUMBLE && this.crS[i] === 0) { this.crS[i] = 1; this.crT[i] = 0; }
+    const sf = this.surf[i];
+    if ((sf === SF.CRUMBLE || sf === SF.CLOUD) && this.crS[i] === 0) { this.crS[i] = 1; this.crT[i] = 0; }
   }
-  updateCrumble(dt, bodies) {
+  // 무너지는 발판·구름·지뢰 상태 (t: 달리기 시간)
+  updateDynamic(dt, t, bodies) {
+    for (const it of this.mines) {
+      const st = this.mineState(it, t);
+      if (st === 0) {
+        const x = it.x * TILE, y = it.y * TILE + 8;
+        for (const b of bodies) if (rectsOverlap(b.x, b.y, b.w, b.h, x + 1, y, 14, 8)) { this.mineT.set(it.id, t); this.onMineArm && this.onMineArm(it); break; }
+      } else if (st === 2 && !this.mineBoomed.has(it.id)) { this.mineBoomed.add(it.id); this.onMineBoom && this.onMineBoom(it); }
+      else if (st === 3) this.mineBoomed.delete(it.id);
+    }
     for (const i of this.crumbles) {
       const s = this.crS[i];
+      const cloud = this.surf[i] === SF.CLOUD;
       if (s === 1) {
         this.crT[i] += dt;
-        if (this.crT[i] >= 0.5) { this.crS[i] = 2; this.crT[i] = 0; this.onCrumble && this.onCrumble(i); }
+        if (this.crT[i] >= (cloud ? 1 : 0.5)) { this.crS[i] = 2; this.crT[i] = 0; this.onCrumble && this.onCrumble(i, cloud); }
       } else if (s === 2) {
         this.crT[i] += dt;
-        if (this.crT[i] >= 3) {
+        if (this.crT[i] >= (cloud ? 2.5 : 3)) {
           const x = (i % W) * TILE, y = Math.floor(i / W) * TILE;
           let blocked = false;
           for (const b of bodies) if (rectsOverlap(b.x, b.y, b.w, b.h, x, y, 16, 16)) blocked = true;
@@ -295,7 +395,7 @@ export class World {
       }
     }
   }
-  resetDynamic() { this.crS.fill(0); this.crT.fill(0); }
+  resetDynamic() { this.crS.fill(0); this.crT.fill(0); this.mineT.clear(); this.mineBoomed.clear(); }
 
   // ---------- 배치 ----------
   canPlace(type, x, y, rot) {

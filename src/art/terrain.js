@@ -118,6 +118,10 @@ export function renderTerrain(world, canvas) {
         ctx.drawImage(SPR.macePost, X, Y);
         break;
       }
+      case 'bigstone': ctx.drawImage(SPR.stone, X, Y); break;
+      case 'web': ctx.drawImage(SPR.web, X, Y); break;
+      case 'cannon': ctx.drawImage(it.rot === 1 ? SPR.cannonR : SPR.cannonL, X, Y); break;
+      case 'crusher': ctx.drawImage(SPR.crushHouse, X, Y); break;
     }
   }
   // 출발 팻말

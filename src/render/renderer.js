@@ -183,11 +183,11 @@ export class Renderer {
       }
       case 'blackhole': {
         ctx.fillStyle = 'rgba(160,100,255,0.06)';
-        ctx.beginPath(); ctx.arc(X + 8, Y + 8, 64, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(X + 8, Y + 8, 48, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = 'rgba(190,140,255,0.5)';
         for (let a = 0; a < 24; a++) {
           const an = a / 24 * Math.PI * 2 + t * 0.8;
-          const rr = 64 - mod(t * 30 + a * 7, 56);
+          const rr = 48 - mod(t * 30 + a * 7, 42);
           ctx.fillRect(Math.round(X + 8 + Math.cos(an) * rr), Math.round(Y + 8 + Math.sin(an) * rr), 1, 1);
         }
         ctx.drawImage(SPR.hole[Math.floor(t * 10) % 4], X, Y);
@@ -204,7 +204,7 @@ export class Renderer {
         ctx.fillStyle = '#9aa0ae';
         for (let k = 1; k < 6; k++) ctx.fillRect(Math.round(cx + (b.x - cx) * k / 6) - 1, Math.round(cy + (b.y - cy) * k / 6) - 1, 2, 2);
         ctx.drawImage(SPR.maceBall, Math.round(b.x - 8), Math.round(b.y - 8));
-        if (ghost) { ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(cx, cy, 40, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+        if (ghost) { ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(cx, cy, 34, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
         break;
       }
       case 'arrow': {
@@ -250,6 +250,7 @@ export class Renderer {
         break;
       }
     }
+    this.drawNewDyn(ctx, it, t, X, Y, ghost);
     if (ghost) {
       // 정적 스프라이트 부분
       switch (it.type) {
@@ -262,6 +263,10 @@ export class Renderer {
         case 'arrow': ctx.drawImage(SPR.launcher[it.rot], X, Y); break;
         case 'flame': ctx.drawImage(SPR.flamer[it.rot], X, Y); break;
         case 'laser': ctx.drawImage(SPR.laser[it.rot], X, Y); break;
+        case 'bigstone': ctx.drawImage(SPR.stone, X, Y); break;
+        case 'web': ctx.drawImage(SPR.web, X, Y); break;
+        case 'cannon': ctx.drawImage(it.rot === 1 ? SPR.cannonR : SPR.cannonL, X, Y); this.rayGuide(ctx, it, 24); break;
+        case 'crusher': ctx.drawImage(SPR.crushHouse, X, Y); this.rayGuide(ctx, { x: it.x, y: it.y, rot: 2 }, 4); break;
         case 'bomb': {
           ctx.fillStyle = 'rgba(255,90,60,0.22)';
           ctx.beginPath(); ctx.arc(X + 8, Y + 8, 40, 0, Math.PI * 2); ctx.fill();
@@ -269,6 +274,100 @@ export class Renderer {
           break;
         }
       }
+    }
+  }
+
+  // v1.2 추가 함정 그리기
+  drawNewDyn(ctx, it, t, X, Y, ghost) {
+    const w = this.world;
+    switch (it.type) {
+      case 'cloud': {
+        const i = it.y * W + it.x;
+        const st = ghost ? 0 : w.crS[i];
+        if (st === 2) { ctx.globalAlpha = 0.15; ctx.drawImage(SPR.cloud, X, Y); ctx.globalAlpha = 1; }
+        else {
+          const fade = st === 1 ? 1 - w.crT[i] * 0.6 : 1;
+          const prev = ctx.globalAlpha;
+          ctx.globalAlpha = prev * fade;
+          ctx.drawImage(SPR.cloud, X + (st === 1 ? Math.round(Math.sin(t * 50)) : 0), Y + Math.round(Math.sin(t * 2 + it.x) * 0.6));
+          ctx.globalAlpha = prev;
+        }
+        break;
+      }
+      case 'booster': ctx.drawImage((it.rot === 1 ? SPR.boostR : SPR.boostL)[Math.floor(t * 9) % 3], X, Y); break;
+      case 'lowgrav': {
+        ctx.fillStyle = 'rgba(122,212,255,0.13)'; ctx.fillRect(X, Y, 48, 48);
+        ctx.fillStyle = 'rgba(160,230,255,0.55)';
+        ctx.fillRect(X, Y, 48, 1); ctx.fillRect(X, Y + 47, 48, 1); ctx.fillRect(X, Y, 1, 48); ctx.fillRect(X + 47, Y, 1, 48);
+        for (let k = 0; k < 7; k++) {
+          const yy = 46 - mod(t * 12 + k * 7.3, 46), xx = (k * 13 + 5) % 44;
+          ctx.fillRect(X + xx + 1 + Math.round(Math.sin(t * 2 + k) * 2), Y + yy, 2, 2);
+        }
+        break;
+      }
+      case 'fan': {
+        ctx.drawImage(SPR.fan[Math.floor(t * 20) % 2][it.rot], X, Y);
+        const len = ghost ? w.ray(it.x, it.y, it.rot, 5) * 16 : it.ray;
+        if (len > 0) {
+          const r = w.beamRect(it, len, 16);
+          ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(r.x, r.y, r.w, r.h);
+          ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          const [dx, dy] = DIRS[it.rot];
+          for (let k = 0; k < 5; k++) {
+            const d = mod(t * 110 + k * (len / 5), len);
+            const ox = (k * 5) % 13 + 1;
+            if (dx) ctx.fillRect(dx > 0 ? r.x + d : r.x + r.w - d - 6, r.y + ox, 6, 1);
+            else ctx.fillRect(r.x + ox, dy > 0 ? r.y + d : r.y + r.h - d - 6, 1, 6);
+          }
+        }
+        break;
+      }
+      case 'ghost': {
+        let a = 1;
+        if (!ghost) {
+          if (!w.ghostSolid(it, t)) a = 0.18;
+          else if (w.ghostWarn(it, t)) a = Math.floor(t * 12) % 2 ? 0.35 : 0.9;
+        }
+        const prev = ctx.globalAlpha;
+        ctx.globalAlpha = prev * a;
+        ctx.drawImage(SPR.ghost, X, Y);
+        ctx.globalAlpha = prev;
+        break;
+      }
+      case 'cannon': {
+        if (ghost) break;
+        if (w.cannonWarn(it, t)) { ctx.fillStyle = Math.floor(t * 16) % 2 ? '#ffe14a' : '#ff6a2a'; ctx.fillRect(it.rot === 1 ? X + 15 : X - 1, Y + 5, 2, 4); }
+        w.forBalls(it, t, (bx, by) => ctx.drawImage(SPR.ball, Math.round(bx - 6), Math.round(by - 6)));
+        break;
+      }
+      case 'crusher': {
+        const st = ghost ? { d: 0 } : w.crusherState(it, t);
+        const jx = st.shake ? (Math.floor(t * 40) % 2 ? 1 : -1) : 0;
+        if (st.d > 1) { ctx.fillStyle = '#6a7080'; ctx.fillRect(X + 7, Y + 12, 2, st.d); }
+        ctx.drawImage(SPR.crushHead, X + jx, Y + st.d);
+        break;
+      }
+      case 'poison': ctx.drawImage(SPR.poison[Math.floor(t * 4) % 3], X, Y); break;
+      case 'sawrail': {
+        ctx.fillStyle = '#4a4e5e';
+        if (it.rot === 0) { ctx.fillRect(X + 6, Y + 7, 68, 2); ctx.fillRect(X + 6, Y + 5, 2, 6); ctx.fillRect(X + 72, Y + 5, 2, 6); }
+        else { ctx.fillRect(X + 7, Y - 58, 2, 68); ctx.fillRect(X + 5, Y - 58, 6, 2); ctx.fillRect(X + 5, Y + 8, 6, 2); }
+        const p = ghost ? { x: X + 8, y: Y + 8 } : w.sawRailPos(it, t);
+        ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(t * 16); ctx.drawImage(SPR.saw, -8, -8); ctx.restore();
+        break;
+      }
+      case 'mine': {
+        const st = ghost ? 0 : w.mineState(it, t);
+        if (st === 3) { ctx.globalAlpha = 0.35; ctx.drawImage(SPR.mine[0], X, Y); ctx.globalAlpha = 1; break; }
+        const on = st === 1 ? Math.floor(t * 20) % 2 : Math.floor(t * 1.5) % 2;
+        ctx.drawImage(SPR.mine[on], X, Y);
+        if (st === 1) { ctx.strokeStyle = 'rgba(255,60,60,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(X + 8, Y + 13, 26, 0, Math.PI * 2); ctx.stroke(); }
+        if (ghost) { ctx.strokeStyle = 'rgba(255,90,90,0.4)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(X + 8, Y + 13, 26, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+        break;
+      }
+      case 'arrow':
+        if (!ghost && w.arrowWarn(it, t)) { const r = w.beamRect(it, 2, 6); ctx.fillStyle = Math.floor(t * 20) % 2 ? '#ffe14a' : '#ff6a2a'; ctx.fillRect(r.x, r.y, r.w, r.h); }
+        break;
     }
   }
 

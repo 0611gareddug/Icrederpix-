@@ -59,6 +59,14 @@ export function choosePlacement(world, type, diff, heat, ctx, r) {
       case 'mace': s += hArea(heat, x, y, 3) * 0.12; break;
       case 'arrow': case 'laser': s += hRay(heat, world, it, 14) * 0.35; break;
       case 'flame': s += hRay(heat, world, it, 3) * 0.7; break;
+      case 'cannon': s += hRay(heat, world, it, 16) * 0.3; break;
+      case 'fan': s += hRay(heat, world, it, 5) * 0.45; break;
+      case 'crusher': s += hRay(heat, world, { x, y, rot: 2 }, 4) * 0.9; break;
+      case 'poison': s += hArea(heat, x, y, 1) * 0.55; break;
+      case 'sawrail': { let h2 = 0; for (let k = 0; k <= 4; k++) h2 += rot === 0 ? hArea(heat, x + k, y, 0) : hArea(heat, x, y - k, 0); s += h2 * 0.5; break; }
+      case 'mine': s += hAt(heat, x, y) * 1.4 + hAt(heat, x, y - 1) * 0.6; break;
+      case 'web': s += hArea(heat, x, y, 1) * 0.35; break;
+      case 'ghost':
       case 'ice': case 'sticky': case 'crumble':
         s += (hAt(heat, x, y - 1) + hAt(heat, x, y - 2)) * 0.6 - hAt(heat, x, y) * 0.3;
         if (helpful && fr) s -= Math.hypot(x - fr.x - 3, y - fr.y - 1) * 0.15;

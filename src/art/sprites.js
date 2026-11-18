@@ -1,5 +1,5 @@
 // 아이템·오브젝트 픽셀 스프라이트 (모두 코드로 생성)
-import { mkCanvas, px, outline, rotated } from './canvas.js';
+import { mkCanvas, px, outline, rotated, flipped } from './canvas.js';
 import { hash2 } from '../core/util.js';
 
 export const OL = '#1b1726';
@@ -181,6 +181,95 @@ export function buildSprites() {
     px(c, 1, 0, '#bfeaff', 6, 3); px(c, 2, 3, '#bfeaff', 4, 3); px(c, 3, 6, '#9fdcff', 2, 4); px(c, 3, 10, '#ffffff', 1, 1);
     px(c, 2, 0, '#ffffff', 1, 5);
   });
+  buildNewSprites();
+}
+
+// ---------- v1.2 추가 함정 ----------
+function buildNewSprites() {
+  // 구름 발판 (16x9)
+  SPR.cloud = make(16, 9, (c) => {
+    px(c, 1, 3, '#ffffff', 14, 5); px(c, 3, 1, '#ffffff', 5, 3); px(c, 8, 0, '#ffffff', 5, 4);
+    px(c, 1, 7, '#d8e4f4', 14, 1); px(c, 4, 2, '#f4f8ff', 2, 1);
+  });
+  // 부스터 패드 (오른쪽 기준, 3프레임)
+  SPR.boostR = [0, 1, 2].map((f) => make(16, 16, (c) => {
+    px(c, 1, 1, '#4a4e5e', 14, 14); px(c, 1, 1, '#6a7080', 14, 1); px(c, 1, 14, '#2e313a', 14, 1);
+    px(c, 1, 2, '#2a2c3a', 14, 4);
+    for (let k = 0; k < 3; k++) {
+      const x = 2 + ((k * 5 + f * 2) % 13);
+      const col = k === f ? '#ffe14a' : '#ff9a2a';
+      px(c, x, 2, col, 2, 1); px(c, x + 1, 3, col, 2, 2); px(c, x, 5, col, 2, 1);
+    }
+    px(c, 4, 8, '#ff9a2a', 8, 2); px(c, 10, 7, '#ff9a2a', 2, 4); px(c, 12, 8, '#ff9a2a', 1, 2);
+  }));
+  SPR.boostL = SPR.boostR.map(flipped);
+  // 큰 돌 블록 (32x32)
+  SPR.stone = make(32, 32, (c) => {
+    px(c, 1, 1, '#8a8f9e', 30, 30); px(c, 1, 1, '#b4b9c6', 30, 2); px(c, 1, 1, '#b4b9c6', 2, 30);
+    px(c, 1, 29, '#5e6270', 30, 2); px(c, 29, 1, '#5e6270', 2, 30);
+    px(c, 9, 4, '#6a6f7c', 1, 8); px(c, 10, 11, '#6a6f7c', 5, 1); px(c, 15, 12, '#6a6f7c', 1, 6);
+    px(c, 20, 18, '#6a6f7c', 7, 1); px(c, 5, 21, '#6a6f7c', 6, 1); px(c, 22, 6, '#9aa0ae', 4, 3); px(c, 6, 15, '#9aa0ae', 3, 2);
+    px(c, 24, 24, '#6a6f7c', 2, 2); px(c, 12, 25, '#9aa0ae', 3, 1);
+  });
+  // 선풍기 (오른쪽 기준, 2프레임)
+  SPR.fan = [0, 1].map((f) => [0, 1, 2, 3].map((r) => rotated(make(16, 16, (c) => {
+    px(c, 1, 1, '#5a8ac8', 10, 14); px(c, 1, 1, '#8ab4ea', 10, 1); px(c, 1, 14, '#3a5a8a', 10, 1);
+    px(c, 11, 2, '#c8d0e0', 4, 12);
+    for (let y = 3; y < 13; y += 2) px(c, 11, y, '#6a7080', 4, 1);
+    px(c, 5, 6, '#e8ecf4', 4, 4);
+    if (f) { px(c, 6, 2, '#e8ecf4', 2, 4); px(c, 6, 10, '#e8ecf4', 2, 4); }
+    else { px(c, 2, 7, '#e8ecf4', 4, 2); px(c, 8, 7, '#e8ecf4', 3, 2); }
+    px(c, 6, 7, '#3a3f4c', 2, 2);
+  }), (r + 3) % 4)));
+  // 유령 블록
+  SPR.ghost = make(16, 16, (c) => {
+    px(c, 1, 1, '#b08aff', 14, 14); px(c, 1, 1, '#d8c4ff', 14, 2); px(c, 1, 13, '#7a50d0', 14, 2);
+    px(c, 4, 5, '#ffffff', 3, 4); px(c, 9, 5, '#ffffff', 3, 4); px(c, 5, 6, '#1b1726', 2, 2); px(c, 10, 6, '#1b1726', 2, 2);
+    px(c, 6, 11, '#7a50d0', 4, 1);
+  });
+  // 거미줄 (32x32)
+  SPR.web = make(32, 32, (c) => {
+    const col = 'rgba(240,244,255,0.85)';
+    for (let k = 0; k < 32; k++) { px(c, k, k, col); px(c, 31 - k, k, col); px(c, 16, k, col); px(c, k, 16, col); }
+    for (const r of [5, 10, 14]) for (let a = 0; a < 64; a++) {
+      const an = (a / 64) * Math.PI * 2;
+      px(c, Math.round(16 + Math.cos(an) * r), Math.round(16 + Math.sin(an) * r), col);
+    }
+    px(c, 14, 14, '#2a2c3a', 4, 4); px(c, 13, 13, '#2a2c3a', 1, 1); px(c, 18, 13, '#2a2c3a', 1, 1); px(c, 13, 18, '#2a2c3a', 1, 1); px(c, 18, 18, '#2a2c3a', 1, 1);
+    px(c, 15, 15, '#ff3a3a', 1, 1); px(c, 16, 15, '#ff3a3a', 1, 1);
+  }, false);
+  // 대포 (오른쪽 기준)
+  SPR.cannonR = make(16, 16, (c) => {
+    px(c, 2, 9, '#7a4e2a', 10, 5); px(c, 2, 9, '#a8703f', 10, 1);
+    px(c, 3, 13, '#3a3f4c', 3, 3); px(c, 9, 13, '#3a3f4c', 3, 3);
+    px(c, 4, 4, '#3a3c4a', 11, 6); px(c, 4, 4, '#6a6f7c', 11, 1); px(c, 13, 3, '#2a2c3a', 3, 8); px(c, 15, 5, '#0e0b18', 1, 4);
+    px(c, 1, 5, '#3a3c4a', 3, 4);
+  });
+  SPR.cannonL = flipped(SPR.cannonR);
+  SPR.ball = make(12, 12, (c) => {
+    for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) { const d = Math.hypot(x - 5.5, y - 5.5); if (d < 5) px(c, x, y, d < 2 && x < 6 && y < 6 ? '#6a6f7c' : '#2a2c3a'); }
+  });
+  // 쿵쿵이
+  SPR.crushHouse = block('#5a6070', '#3a3f4c', '#8a94a8', (c) => { px(c, 4, 4, '#2a2c3a', 8, 8); px(c, 6, 6, '#ffd23f', 4, 4); });
+  SPR.crushHead = make(16, 16, (c) => {
+    px(c, 1, 0, '#8a8f9e', 14, 12); px(c, 1, 0, '#b4b9c6', 14, 1); px(c, 1, 11, '#5e6270', 14, 1);
+    px(c, 3, 4, '#1b1726', 3, 2); px(c, 10, 4, '#1b1726', 3, 2); px(c, 3, 3, '#1b1726', 2, 1); px(c, 11, 3, '#1b1726', 2, 1);
+    px(c, 5, 8, '#1b1726', 6, 1);
+    for (let k = 0; k < 4; k++) { px(c, 1 + k * 4, 12, '#e8ecf4', 3, 1); px(c, 2 + k * 4, 13, '#e8ecf4', 1, 2); }
+  });
+  // 독 블록 (3프레임)
+  SPR.poison = [0, 1, 2].map((f) => block('#6a2a8a', '#3e1458', '#8a4ab0', (c) => {
+    px(c, 2, 2, '#7ad83a', 12, 3); px(c, 2, 2, '#b4f06a', 12, 1);
+    px(c, 3 + f * 3, 5, '#7ad83a', 2, 2 + f);
+    px(c, 5, 8, '#f0f0f0', 6, 4); px(c, 6, 9, '#1b1726', 1, 1); px(c, 9, 9, '#1b1726', 1, 1); px(c, 6, 12, '#f0f0f0', 4, 1);
+    px(c, 11 - f, 1, '#b4f06a', 2, 1);
+  }));
+  // 지뢰 (2프레임, 칸 아래쪽에 놓임)
+  SPR.mine = [0, 1].map((f) => make(16, 16, (c) => {
+    px(c, 3, 12, '#3a3f4c', 10, 3); px(c, 4, 10, '#4a4e5e', 8, 2); px(c, 5, 9, '#4a4e5e', 6, 1);
+    px(c, 7, 7, f ? '#ff3a3a' : '#7a2020', 2, 2);
+    px(c, 4, 10, '#6a7080', 3, 1); px(c, 2, 14, '#2a2c3a', 12, 1);
+  }));
 }
 
 // 상자/UI 아이콘 (16x16, 회전 0)
@@ -203,6 +292,18 @@ export function iconFor(type) {
     case 'mace': return make(16, 16, (c) => { px(c, 3, 9, '#8a94a8', 1, 1); px(c, 5, 7, '#8a94a8', 1, 1); c.drawImage(SPR.macePost, 0, 0, 16, 16, -2, 6, 10, 10); c.drawImage(SPR.maceBall, 0, 0, 16, 16, 5, -1, 12, 12); }, false);
     case 'laser': return SPR.laser[1];
     case 'bomb': return SPR.bomb;
+    case 'cloud': return make(16, 16, (c) => c.drawImage(SPR.cloud, 0, 4), false);
+    case 'booster': return SPR.boostR[0];
+    case 'lowgrav': return make(16, 16, (c) => { px(c, 1, 1, '#7ad4ff', 14, 14); px(c, 2, 2, '#bfeaff', 12, 12); px(c, 5, 9, '#3a8ac8', 6, 1); px(c, 7, 4, '#3a8ac8', 2, 5); px(c, 5, 6, '#3a8ac8', 1, 1); px(c, 10, 6, '#3a8ac8', 1, 1); px(c, 6, 5, '#3a8ac8', 4, 1); });
+    case 'bigstone': return make(16, 16, (c) => c.drawImage(SPR.stone, 0, 0, 32, 32, 0, 0, 16, 16), false);
+    case 'fan': return SPR.fan[0][1];
+    case 'ghost': return SPR.ghost;
+    case 'web': return make(16, 16, (c) => c.drawImage(SPR.web, 0, 0, 32, 32, 0, 0, 16, 16), false);
+    case 'cannon': return SPR.cannonR;
+    case 'crusher': return make(16, 16, (c) => { c.drawImage(SPR.crushHouse, 0, 0, 16, 16, 3, 0, 10, 6); c.drawImage(SPR.crushHead, 0, 0, 16, 16, 1, 5, 14, 11); }, false);
+    case 'poison': return SPR.poison[0];
+    case 'sawrail': return make(16, 16, (c) => { px(c, 0, 7, '#6a7080', 16, 2); c.drawImage(SPR.saw, 0, 0, 16, 16, 3, 3, 10, 10); }, false);
+    case 'mine': return SPR.mine[1];
   }
   return SPR.wood;
 }

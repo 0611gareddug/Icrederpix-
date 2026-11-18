@@ -163,7 +163,7 @@ export class Hud {
         if (r.goal || r.kills) { plus.textContent = '+' + (r.goal + r.kills); pt.textContent = String(r.after); }
       });
     }
-    box.append(h('div', { class: 'legend' }, h('span', null, h('i', { style: { background: '#ffd23f' } }), '골인 +10'), h('span', null, h('i', { style: { background: '#ff5a5a' } }), '함정 처치 +3'), h('span', null, h('i', { style: { background: '#fff' } }), `목표 ${target}점`)));
+    box.append(h('div', { class: 'legend' }, h('span', null, h('i', { style: { background: '#ffd23f' } }), '골인 +5'), h('span', null, h('i', { style: { background: '#ff5a5a' } }), '함정 처치 +2'), h('span', null, h('i', { style: { background: '#fff' } }), `목표 ${target}점`)));
     this.resEl = h('div', { class: 'result' }, box);
     this.layer.append(this.resEl);
     setTimeout(() => { anims.forEach((f, i) => setTimeout(() => { f(); if (rows[i].goal || rows[i].kills) sfx('score'); }, i * 160)); }, 450);

@@ -125,18 +125,19 @@ export class NavGraph {
 
   findNodes() {
     const w = this.world;
+    w.staticMode = true;
     for (let y = 0; y < H - 1; y++) {
       for (let x = 0; x < W; x++) {
         const below = w.solidAt(x, y + 1);
         if (!(below === S_SOLID || below === S_ONEWAY || below === S_LADTOP)) continue;
         const surf = w.surfAt(x, y + 1);
-        if (surf === SF.TRAMP_U) continue;
+        if (surf === SF.TRAMP_U || surf === SF.BOOST_R || surf === SF.BOOST_L) continue;
         const b = newBody(x * TILE + 8, (y + 1) * TILE);
         if (!canStandAt(w, b)) continue;
         if (staticDead(w, b)) continue;
         // 블랙홀 근처는 서 있기 어려움
         let pulled = false;
-        for (const h of w.holes) if (Math.hypot(h.x * TILE + 8 - (x * TILE + 8), h.y * TILE + 8 - (y * TILE + 6)) < 60) pulled = true;
+        for (const h of w.holes) if (Math.hypot(h.x * TILE + 8 - (x * TILE + 8), h.y * TILE + 8 - (y * TILE + 6)) < 46) pulled = true;
         if (pulled) continue;
         const n = { id: this.nodes.length, x, y, surf, edges: [], goal: w.touchGoal(b) };
         this.nodeAtCell[y * W + x] = n.id;

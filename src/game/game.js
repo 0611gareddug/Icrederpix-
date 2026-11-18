@@ -137,7 +137,9 @@ export class Game {
 
   m_start(m) {
     this.world = new World(m.map);
-    this.world.onCrumble = (i) => this.fxCrumble(i);
+    this.world.onCrumble = (i, cloud) => this.fxCrumble(i, cloud);
+    this.world.onMineArm = (it) => { if (!this.demo && this.isVisible({ x: it.x * TILE, y: it.y * TILE, w: 16, h: 16 })) sfx('charge'); };
+    this.world.onMineBoom = (it) => this.fxMine(it);
     this.renderer.setWorld(this.world);
     this.target = m.target; this.maxRounds = m.maxRounds;
     this.players.clear();
@@ -497,7 +499,7 @@ export class Game {
       }
       const bodies = [];
       for (const p of this.players.values()) { const b = this.bodyPos(p); if (b && p.st === 'run') bodies.push(b); }
-      this.world.updateCrumble(dt, bodies);
+      this.world.updateDynamic(dt, t, bodies);
       if (this.isHost && this.frame % 10 === 0) {
         for (const p of this.players.values()) {
           if (p.st !== 'run') continue;
@@ -540,6 +542,7 @@ export class Game {
       if (ev & EV.LAND && b.fallV > 140) { this.particles.dust(b.x + 5, b.y + b.h, 4); if (local) sfx('land'); }
       if (ev & EV.DASH) { if (local) { sfx('dash'); } }
       if (ev & EV.SLIDE && local) sfx('slide');
+      if (ev & EV.BOOST) { this.particles.dust(b.x + 5, b.y + b.h, 5, '#ffd23f'); if (local) sfx('dash'); }
       if (ev & EV.BOUNCE) {
         const tx = Math.floor((b.x + 5) / TILE), ty = Math.floor((b.y + b.h + 2) / TILE);
         for (const it of this.world.items.values()) if (it.type === 'tramp' && Math.abs(it.x - tx) <= 1 && Math.abs(it.y - ty) <= 1) this.bounce.set(it.id, t + 0.15);
@@ -610,6 +613,16 @@ export class Game {
       if (o !== undefined && k !== o && vis(it)) sfx('arrow');
       this.trapState.set(it.id, k);
     }
+    for (const it of w.cannons) {
+      const k = Math.floor((t - it.phase) / 3), o = this.trapState.get(it.id);
+      if (o !== undefined && k !== o && vis(it)) sfx('cannon');
+      this.trapState.set(it.id, k);
+    }
+    for (const it of w.crushers) {
+      const s = w.crusherState(it, t).down ? 1 : 0, o = this.trapState.get(it.id);
+      if (s === 1 && o === 0 && vis(it)) { sfx('slam'); const st = w.crusherState(it, t); this.particles.dust(it.x * TILE + 8, it.y * TILE + 16 + st.d + 16, 6); }
+      this.trapState.set(it.id, s);
+    }
   }
 
   // ---------------- 효과 ----------------
@@ -629,8 +642,14 @@ export class Game {
     else if (fx === 4) for (let i = 0; i < 18; i++) this.particles.spawn(x + (Math.random() - 0.5) * 70, y - 60 - Math.random() * 30, 0, 20 + Math.random() * 30, 1.6, '#ffc21a', 1, 60, 3);
     if (!this.demo && (p.id === this.localPid || this.isVisible({ x, y, w: 1, h: 1 }))) sfx('goal');
   }
-  fxCrumble(i) {
+  fxMine(it) {
+    const x = it.x * TILE + 8, y = it.y * TILE + 13;
+    this.particles.burst(x, y, 34, ['#ffe14a', '#ff8a2a', '#ff3a00', '#5a5f70'], 150, 0.7, 2, 200);
+    if (!this.demo && this.isVisible({ x, y, w: 1, h: 1 })) { sfx('explode'); this.addShake(4); }
+  }
+  fxCrumble(i, cloud) {
     const x = (i % W) * 16 + 8, y = Math.floor(i / W) * 16 + 8;
+    if (cloud) { this.particles.burst(x, y - 4, 10, ['#ffffff', '#e0e8f8'], 40, 0.6, 3, -20); return; }
     this.particles.burst(x, y, 10, ['#d8b06a', '#9a7438'], 70, 0.6, 2, 400);
     if (!this.demo && this.isVisible({ x, y, w: 1, h: 1 })) sfx('crumble');
   }

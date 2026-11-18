@@ -13,7 +13,7 @@ export const P = {
 };
 
 // 이벤트 비트
-export const EV = { JUMP: 1, LAND: 2, WJUMP: 4, DASH: 8, BOUNCE: 16, SLIDE: 32, WALL: 128, STEP: 256 };
+export const EV = { JUMP: 1, LAND: 2, WJUMP: 4, DASH: 8, BOUNCE: 16, SLIDE: 32, BOOST: 512, WALL: 128, STEP: 256 };
 
 export function newBody(x, feetY) {
   return {
@@ -21,11 +21,12 @@ export function newBody(x, feetY) {
     vx: 0, vy: 0, ground: false, gsurf: 0, coyote: 0, buf: 0, held: false,
     crouch: false, slide: 0, dash: 0, dashCd: 0, dvx: 0, dvy: 0, airDash: false,
     wall: 0, wallOk: false, lock: 0, lockDir: 0, climb: false, face: 1,
-    plat: -1, noCut: false, ev: 0, px: 0, py: 0, walkT: 0, fallV: 0,
+    plat: -1, noCut: false, ev: 0, boostT: 0, px: 0, py: 0, walkT: 0, fallV: 0,
   };
 }
 export function copyBody(b) { return Object.assign({}, b); }
 
+const FAN_DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 export const NO_INPUT = { mx: 0, my: 0, jump: false, jumpP: false, dashP: false };
 
 function solidCell(world, tx, ty) { return world.solidAt(tx, ty) === S_SOLID; }
@@ -59,6 +60,14 @@ export function step(b, inp, world, t, dt, mode = 0) {
   b.ev = 0;
   b.px = b.x; b.py = b.y;
   const full = mode !== 1;
+  world.now = t; world.staticMode = mode === 1;
+  const ig = world._ig || (world._ig = { x: 0, y: 0, w: 0, h: 0 });
+  ig.x = b.x; ig.y = b.y; ig.w = b.w; ig.h = b.h; world.ignore = ig;
+  // 영역 효과
+  const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+  let inGrav = false, inWeb = false;
+  for (const r of world.gravs) if (bcx >= r.x && bcx < r.x + r.w && bcy >= r.y && bcy < r.y + r.h) { inGrav = true; break; }
+  for (const r of world.webs) if (rectsOverlap(b.x, b.y, b.w, b.h, r.x, r.y, r.w, r.h)) { inWeb = true; break; }
   if (inp.jumpP) b.buf = P.BUFFER; else if (b.buf > 0) b.buf -= dt;
   b.held = inp.jump;
   if (b.dashCd > 0) b.dashCd -= dt;
@@ -118,7 +127,15 @@ export function step(b, inp, world, t, dt, mode = 0) {
     if (surf === SF.STICKY) max *= 0.4;
     let mx = inp.mx;
     if (b.lock > 0 && sign(mx) === b.lockDir) mx *= 0.2;
-    if (b.slide > 0) {
+    if (b.ground && (surf === SF.BOOST_R || surf === SF.BOOST_L)) {
+      const d = surf === SF.BOOST_R ? 1 : -1;
+      if (b.boostT <= 0 || sign(b.vx) !== d) b.ev |= EV.BOOST;
+      b.vx = d * 260; b.boostT = 0.45; b.face = d;
+    }
+    if (b.boostT > 0) b.boostT -= dt;
+    if (b.boostT > 0 && Math.abs(b.vx) > max && b.slide <= 0) {
+      b.vx = approach(b.vx, sign(b.vx) * max, 170 * dt);
+    } else if (b.slide > 0) {
       b.slide -= dt;
       b.vx = approach(b.vx, 0, 150 * dt);
     } else {
@@ -138,7 +155,8 @@ export function step(b, inp, world, t, dt, mode = 0) {
     let g = P.G;
     if (b.vy < 0 && !b.held && !b.noCut) g *= 3;
     if (b.vy >= 0) b.noCut = false;
-    b.vy = Math.min(b.vy + g * dt, P.MAX_FALL);
+    if (inGrav) g *= 0.42;
+    b.vy = Math.min(b.vy + g * dt, inGrav ? 130 : P.MAX_FALL);
     // 벽 미끄러짐
     if (!b.ground && b.wall !== 0 && b.wallOk && sign(inp.mx) === b.wall && b.vy > P.WALL_SLIDE) {
       b.vy = P.WALL_SLIDE; b.ev |= EV.WALL;
@@ -169,12 +187,21 @@ export function step(b, inp, world, t, dt, mode = 0) {
     const wd = world.wind(t);
     if (wd.active) exDx += wd.dir * P.WIND * dt;
   }
+  for (const f of world.fans) {
+    if (f.ray <= 0) continue;
+    const r = world.beamRect(f, f.ray, 16);
+    if (!rectsOverlap(b.x, b.y, b.w, b.h, r.x, r.y, r.w, r.h)) continue;
+    const [fx, fy] = FAN_DIR[f.rot];
+    if (fx) exDx += fx * 85 * dt;
+    else if (fy < 0) { b.vy = Math.max(b.vy - 1700 * dt, -190); b.noCut = true; if (b.ground) b.ground = false; }
+    else b.vy = Math.min(b.vy + 900 * dt, P.MAX_FALL);
+  }
   for (const h of world.holes) {
     const cx = h.x * TILE + 8, cy = h.y * TILE + 8;
     const dx = cx - (b.x + b.w / 2), dy = cy - (b.y + b.h / 2);
     const d = Math.hypot(dx, dy);
-    if (d < 64 && d > 0.1) {
-      const a = (700 * (1 - d / 64) + 160) * dt;
+    if (d < 48 && d > 0.1) {
+      const a = (560 * (1 - d / 48) + 120) * dt;
       b.vx += (dx / d) * a; b.vy += (dy / d) * a;
       if (b.climb) b.climb = false;
     }
@@ -188,6 +215,11 @@ export function step(b, inp, world, t, dt, mode = 0) {
     } else b.plat = -1;
   }
 
+  if (inWeb) {
+    if (b.dash > 0) { b.dash = 0; }
+    b.vx = Math.max(-28, Math.min(28, b.vx));
+    b.vy = Math.max(-150, Math.min(40, b.vy));
+  }
   const wasGround = b.ground;
   moveX(b, b.vx * dt + exDx, world);
   moveY(b, b.vy * dt + exDy, world, inp, t, dt, full);

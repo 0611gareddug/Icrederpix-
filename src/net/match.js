@@ -6,11 +6,12 @@ import { MAP_KEYS } from '../data/maps.js';
 import { choosePlacement, pickScore, makeHeat, seedHeat, decayHeat, addHeat } from '../ai/placer.js';
 
 export const LENGTHS = {
-  short: { target: 30, rounds: 6, label: '짧게 (약 5분)' },
-  normal: { target: 60, rounds: 12, label: '보통 (약 10분)' },
-  long: { target: 90, rounds: 18, label: '길게 (약 15분)' },
+  short: { target: 15, rounds: 6, label: '짧게 (약 6분)' },
+  normal: { target: 30, rounds: 12, label: '보통 (약 12분)' },
+  long: { target: 45, rounds: 18, label: '길게 (약 18분)' },
 };
-export const PHASE_T = { pick: 15, place: 20, cd: 3, run: 45, result: 5.5 };
+export const PHASE_T = { pick: 15, place: 20, cd: 3, run: 60, result: 5.5 };
+export const PTS = { goal: 5, kill: 2 };
 export const MAX_PLAYERS = 6;
 
 export class Match {
@@ -178,10 +179,10 @@ export class Match {
     for (const p of act) {
       const r = this.results[p.id];
       if (!r) continue;
-      if (r.goal) { gains[p.id].goal = 10; goals++; }
+      if (r.goal) { gains[p.id].goal = PTS.goal; goals++; }
       if (r.dead && r.killer > 0) {
         const it = this.world.items.get(r.killer);
-        if (it && it.owner !== p.id && gains[it.owner]) gains[it.owner].kills += 3;
+        if (it && it.owner !== p.id && gains[it.owner]) gains[it.owner].kills += PTS.kill;
       }
     }
     const participants = act.filter((p) => p.connected || this.results[p.id]);
@@ -195,7 +196,7 @@ export class Match {
       if (!g) continue;
       p.score += g.goal + g.kills;
       if (g.goal) p.stats.goals++;
-      p.stats.kills += g.kills / 3;
+      p.stats.kills += g.kills / PTS.kill;
     }
     this.lastFlag = flag;
     if (flag === 'fail') { /* 다음 라운드엔 봇이 길을 열어 준다 */ } else this.frontier = null;

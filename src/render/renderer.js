@@ -84,6 +84,17 @@ export class Renderer {
     this.drawDynamic(ctx, t, s);
     // 용암
     if (w.hasLava) this.drawLava(ctx, w.lavaTop(t), t, vx0, vx1);
+    // 코인
+    if (s.coins) for (const c of s.coins) {
+      if (c.x < vx0 - 8 || c.x > vx1 + 8 || c.y < vy0 - 8 || c.y > vy1 + 8) continue;
+      const wv = Math.abs(Math.cos(t * 4 + c.x * 0.1));
+      const cw = Math.max(1, Math.round(8 * wv)), bob = Math.round(Math.sin(t * 3 + c.x) * 1.5);
+      const X = Math.round(c.x - cw / 2), Y = Math.round(c.y - 4 + bob);
+      ctx.fillStyle = '#1b1726'; ctx.fillRect(X - 1, Y - 1, cw + 2, 10);
+      ctx.fillStyle = '#ffd23f'; ctx.fillRect(X, Y, cw, 8);
+      ctx.fillStyle = '#c79a10'; ctx.fillRect(X, Y + 6, cw, 2);
+      if (cw > 3) { ctx.fillStyle = '#fff6b0'; ctx.fillRect(X + 1, Y + 1, 1, 3); }
+    }
     // 캐릭터
     for (const b of s.bodies) this.drawBody(ctx, b, t);
     s.particles.draw(ctx, vx0, vy0, vx1, vy1);
@@ -332,6 +343,29 @@ export class Renderer {
         case 'web': ctx.drawImage(SPR.web, X, Y); break;
         case 'cannon': ctx.drawImage(it.rot === 1 ? SPR.cannonR : SPR.cannonL, X, Y); this.rayGuide(ctx, it, 24); break;
         case 'crusher': ctx.drawImage(SPR.crushHouse, X, Y); this.rayGuide(ctx, { x: it.x, y: it.y, rot: 2 }, 4); break;
+        case 'hammer': {
+          const id = w.occ[it.y * W + it.x];
+          const target = id > 0 ? w.items.get(id) : null;
+          if (target) {
+            ctx.fillStyle = 'rgba(255,80,60,0.35)';
+            for (const [cx, cy] of itemCells(target.type, target.x, target.y, target.rot)) ctx.fillRect(cx * 16, cy * 16, 16, 16);
+          }
+          ctx.drawImage(SPR.hammer, X + 4, Y - 6);
+          break;
+        }
+        case 'tbomb': {
+          ctx.fillStyle = 'rgba(255,40,40,0.25)';
+          ctx.beginPath(); ctx.arc(X + 8, Y + 8, 40, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,60,60,0.35)';
+          for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+            if (i * i + j * j > 6.25) continue;
+            const k = (it.y + j) * W + (it.x + i);
+            if (it.x + i < 0 || it.y + j < 0 || it.x + i >= W || it.y + j >= H) continue;
+            if (w.terrain[k] && !w.noBuild[k] && !w.safeCell[k]) { ctx.fillRect((it.x + i) * 16 + 2, (it.y + j) * 16 + 2, 12, 12); }
+          }
+          ctx.drawImage(SPR.tbomb, X, Y);
+          break;
+        }
         case 'bomb': {
           ctx.fillStyle = 'rgba(255,90,60,0.22)';
           ctx.beginPath(); ctx.arc(X + 8, Y + 8, 40, 0, Math.PI * 2); ctx.fill();
@@ -461,6 +495,15 @@ export class Renderer {
     if (b.alpha !== undefined) ctx.globalAlpha = b.alpha;
     ctx.drawImage(b.img, Math.round(b.dx), Math.round(b.dy));
     ctx.globalAlpha = 1;
+    if (b.stun) {
+      // 기절 별
+      const cx = b.dx + 10, cy = b.dy + (b.crouch ? 14 : 6);
+      for (let i = 0; i < 3; i++) {
+        const a = t * 6 + (i * Math.PI * 2) / 3;
+        const x = Math.round(cx + Math.cos(a) * 7), y = Math.round(cy + Math.sin(a) * 2);
+        ctx.fillStyle = '#ffe14a'; ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3);
+      }
+    }
   }
 
   drawPlacement(ctx, p, t) {
@@ -487,7 +530,7 @@ export class Renderer {
       ctx.globalAlpha = alpha;
       this.drawItemDyn(ctx, g, t, null, true);
       ctx.globalAlpha = 1;
-      const cells = g.type === 'bomb' ? [[g.x, g.y]] : itemCells(g.type, g.x, g.y, g.rot);
+      const cells = ['bomb', 'hammer', 'tbomb'].includes(g.type) ? [[g.x, g.y]] : itemCells(g.type, g.x, g.y, g.rot);
       ctx.fillStyle = col;
       for (const [cx, cy] of cells) {
         ctx.fillRect(cx * 16, cy * 16, 16, 1); ctx.fillRect(cx * 16, cy * 16 + 15, 16, 1);

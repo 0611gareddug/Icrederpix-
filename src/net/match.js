@@ -12,7 +12,7 @@ export const LENGTHS = {
   long: { target: 45, rounds: 18, label: '길게 (약 18분)' },
 };
 export const PHASE_T = { pick: 15, place: 20, cd: 3, run: 60, result: 5.5 };
-export const PTS = { goal: 5, kill: 2 };
+export const PTS = { goal: 5, kill: 2, coinsPerPoint: 3 };
 export const MAX_PLAYERS = 6;
 
 export class Match {
@@ -56,7 +56,7 @@ export class Match {
   get(pid) { return this.players.find((p) => p.id === pid); }
   active() { return this.players.filter((p) => p.connected); }
   publicPlayers() {
-    return this.players.map((p) => ({ id: p.id, name: p.name, title: p.title || '', look: p.look, kind: p.kind, diff: p.diff, ready: p.ready, ping: p.ping, score: p.score, connected: p.connected, slot: p.slot }));
+    return this.players.map((p) => ({ id: p.id, name: p.name, title: p.title || '', persona: p.persona, look: p.look, kind: p.kind, diff: p.diff, ready: p.ready, ping: p.ping, score: p.score, connected: p.connected, slot: p.slot }));
   }
   syncLobby() {
     this.players.forEach((p, i) => { p.slot = i; });
@@ -164,6 +164,7 @@ export class Match {
   startRun() {
     this.phase = 'run';
     this.results = {};
+    this.coinN = {};
     this.runOrder = 0;
     this.maxX = {};
     this.timer = 0; this.phaseEnd = PHASE_T.cd + PHASE_T.run + 0.4; this.earlyEnd = 0;
@@ -186,7 +187,7 @@ export class Match {
     const act = this.players.filter((p) => this.results[p.id] || p.connected);
     const gains = {};
     let goals = 0;
-    for (const p of act) gains[p.id] = { goal: 0, kills: 0 };
+    for (const p of act) gains[p.id] = { goal: 0, kills: 0, coin: Math.floor((this.coinN[p.id] || 0) / PTS.coinsPerPoint) };
     for (const p of act) {
       const r = this.results[p.id];
       if (!r) continue;
@@ -200,12 +201,12 @@ export class Match {
     let flag = null;
     if (participants.length > 0 && goals === participants.length) {
       flag = 'easy';
-      for (const k in gains) { gains[k].goal = 0; gains[k].kills = 0; }
+      for (const k in gains) { gains[k].goal = 0; gains[k].kills = 0; gains[k].coin = 0; }
     } else if (goals === 0) flag = 'fail';
     for (const p of this.players) {
       const g = gains[p.id];
       if (!g) continue;
-      p.score += g.goal + g.kills;
+      p.score += g.goal + g.kills + g.coin;
       if (g.goal) p.stats.goals++;
       p.stats.kills += g.kills / PTS.kill;
     }
@@ -241,7 +242,9 @@ export class Match {
       case 'placeReq': this.doPlace(pid, m); break;
       case 'cursor': if (this.phase === 'place') this.tx.broadcast({ t: 'cursor', pid, x: m.x, y: m.y, rot: m.rot }, pid); break;
       case 'fin': this.finishPlayer(pid, m.res); break;
-      case 'emote': this.tx.broadcast({ t: 'emote', pid, e: String(m.e).slice(0, 4) }); break;
+      case 'emote': this.tx.broadcast({ t: 'emote', pid, e: String(m.e).slice(0, p.kind === 'bot' ? 10 : 4) }); break;
+      case 'coin': if (this.phase === 'run') this.coinN[pid] = Math.max(0, Math.min(20, m.n | 0)); break;
+      case 'stomp': if (this.phase === 'run' && this.get(m.target) && !this.results[m.target]) this.tx.broadcast({ t: 'stomped', pid: m.target, by: pid }); break;
       case 'ready': p.ready = !!m.r; this.syncLobby(); break;
     }
   }

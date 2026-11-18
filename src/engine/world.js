@@ -434,7 +434,8 @@ export class World {
   canPlace(type, x, y, rot) {
     const d = ITEMS[type];
     if (!d || !d.rots.includes(rot)) return false;
-    if (type === 'bomb') return x >= 0 && y >= 0 && x < W && y < H;
+    if (type === 'bomb' || type === 'tbomb') return x >= 0 && y >= 0 && x < W && y < H;
+    if (type === 'hammer') return x >= 0 && y >= 0 && x < W && y < H && this.occ[y * W + x] > 0;
     const cells = itemCells(type, x, y, rot);
     for (const [cx, cy] of cells) {
       if (cx < 0 || cy < 0 || cx >= W || cy >= H) return false;
@@ -450,19 +451,42 @@ export class World {
   }
   place(it) {
     if (it.type === 'bomb') return this.bomb(it.x, it.y);
+    if (it.type === 'hammer') return this.hammer(it.x, it.y);
+    if (it.type === 'tbomb') return this.tbomb(it.x, it.y);
     this.items.set(it.id, it);
     this.nextId = Math.max(this.nextId, it.id + 1);
     this.rebuild();
     return [];
   }
-  bomb(x, y) {
+  hammer(x, y) {
+    const id = this.occ[y * W + x];
+    if (id > 0) { this.items.delete(id); this.rebuild(); return [id]; }
+    return [];
+  }
+  // 지형까지 부수는 폭탄 (출발·골 주변 보호)
+  tbomb(x, y) {
+    const removed = this.bomb(x, y, true);
+    let broke = 0;
+    for (let j = y - 2; j <= y + 2; j++) for (let i = x - 2; i <= x + 2; i++) {
+      if (i < 0 || j < 0 || i >= W || j >= H || (i - x) ** 2 + (j - y) ** 2 > 6.25) continue;
+      const k = j * W + i;
+      if (this.noBuild[k] || this.safeCell[k]) continue;
+      const t = this.terrain[k];
+      if (t !== T_EMPTY && t !== T_LAVA && t !== T_PRESS) { this.terrain[k] = T_EMPTY; broke++; }
+    }
+    this.presses = this.presses.filter((p) => this.terrain[p.y * W + p.x] === T_PRESS);
+    this.convCells = null;
+    this.rebuild();
+    return removed;
+  }
+  bomb(x, y, noRebuild) {
     const removed = [];
     for (const it of this.items.values()) {
       const cells = itemCells(it.type, it.x, it.y, it.rot);
       if (cells.some(([cx, cy]) => (cx - x) ** 2 + (cy - y) ** 2 <= 6.25)) removed.push(it.id);
     }
     for (const id of removed) this.items.delete(id);
-    this.rebuild();
+    if (!noRebuild) this.rebuild();
     return removed;
   }
 }

@@ -4,6 +4,15 @@ import { step, copyBody, NO_INPUT } from '../engine/physics.js';
 import { polInput, blankInput } from './navgraph.js';
 import { W } from '../engine/world.js';
 
+export const PERSONAS = {
+  prankster: { name: '장난꾸러기' },
+  careful: { name: '조심쟁이' },
+  reckless: { name: '무모한' },
+  collector: { name: '수집가' },
+};
+export const PERSONA_KEYS = Object.keys(PERSONAS);
+const GOOFY = { easy: 0.12, normal: 0.06, hard: 0.015 };
+
 export const BOT_CFG = {
   easy:   { react: [18, 36], err: 0.4, jitter: 6, skip: 0.35, waitMax: 0.8, leapAfter: 6 },
   normal: { react: [8, 18],  err: 0.16, jitter: 3, skip: 0.08, waitMax: 2.2, leapAfter: 9 },
@@ -34,9 +43,14 @@ function standSafe(world, b, t, frames = 24) {
 }
 
 export class Bot {
-  constructor(diff, seed) {
+  constructor(diff, seed, persona) {
     this.diff = diff;
-    this.cfg = BOT_CFG[diff] || BOT_CFG.normal;
+    this.persona = persona || 'careful';
+    const c = Object.assign({}, BOT_CFG[diff] || BOT_CFG.normal);
+    if (this.persona === 'careful') { c.waitMax *= 1.6; c.skip = 0; c.react = c.react.map((v) => Math.round(v * 1.2)); }
+    if (this.persona === 'reckless') { c.skip = Math.min(0.8, c.skip + 0.3); c.waitMax *= 0.3; c.leapAfter *= 0.6; }
+    this.cfg = c;
+    this.goofy = GOOFY[diff] ?? 0.06;
     this.r = rng(seed);
     this.reset();
   }
@@ -74,7 +88,7 @@ export class Bot {
     this.startPol(this.r.pick(opts), b);
   }
 
-  update(b, world, graph, t, dt) {
+  update(b, world, graph, t, dt, ctx) {
     if (!graph || !graph.ready) return blankInput();
     this.progT += dt;
     if (this.state === 'exec') {
@@ -116,6 +130,7 @@ export class Bot {
       if (Math.abs(b.vx) > 20) return inp;
       b.x = target - b.w / 2; b.vx = 0;
       this.state = 'decide';
+      this.extra = true;
       const [a, z] = this.cfg.react;
       this.delay = a + this.r.int(z - a + 1);
       this.waitT = 0; this.check = 0;
@@ -124,6 +139,30 @@ export class Bot {
     // decide
     if (this.delay > 0) { this.delay--; return inp; }
     if (b.dashCd > 0) return inp;
+    if (this.extra) {
+      this.extra = false;
+      // 허당: 가끔 머뭇거리거나 엉뚱하게 뛴다
+      if (this.r() < this.goofy) {
+        if (this.r() < 0.6) { this.delay = 30 + this.r.int(60); return inp; }
+        this.startPol({ k: 'jump', H: 6 + this.r.int(14), d: this.r() < 0.5 ? -1 : 0, D: 12, dl: 0 }, b);
+        return inp;
+      }
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      // 장난꾸러기: 가까운 사람을 밟으러 간다
+      if (this.persona === 'prankster' && ctx && ctx.others && this.r() < 0.35) {
+        for (const o of ctx.others) {
+          const dx = o.x + 5 - cx, dy = o.y + 10 - cy;
+          if (Math.abs(dx) > 8 && Math.abs(dx) < 56 && Math.abs(dy) < 24) { this.startPol({ k: 'jump', H: 20, d: sign(dx), D: 999, dl: 0 }, b); return inp; }
+        }
+      }
+      // 수집가: 가까운 코인을 노린다
+      if (this.persona === 'collector' && ctx && ctx.coins && this.r() < 0.45) {
+        for (const c of ctx.coins) {
+          const dx = c.x - cx, dy = c.y - cy;
+          if (Math.abs(dx) < 64 && dy > -44 && dy < 12) { this.startPol({ k: 'jump', H: dy < -16 ? 20 : 10, d: Math.abs(dx) < 6 ? 0 : sign(dx), D: Math.min(999, Math.round(Math.abs(dx) / 1.6)), dl: 0 }, b); return inp; }
+        }
+      }
+    }
     if (this.progT > this.cfg.leapAfter) { this.progT = 0; this.leap(world, b); return inp; }
     if (this.check > 0) { this.check--; this.waitT += dt; return inp; }
 

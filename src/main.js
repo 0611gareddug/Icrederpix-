@@ -14,6 +14,8 @@ import { HostNet, ClientNet, normCode } from './net/net.js';
 import { MAP_KEYS } from './data/maps.js';
 import { COLORS, HATS, FACES, BACKS, sanitizeLook } from './data/cosmetics.js';
 import { titleOf, cleanTitle } from './data/progress.js';
+import { PERSONA_KEYS } from './ai/bot.js';
+const persona = () => PERSONA_KEYS[Math.floor(Math.random() * PERSONA_KEYS.length)];
 import { initTouch, showTouch } from './ui/touch.js';
 import { h, btn, modal, toast } from './ui/dom.js';
 import * as S from './ui/screens.js';
@@ -88,7 +90,7 @@ class App {
     const tx = { broadcast: (m) => this.demo && this.demo.onMsg(m), sendTo: () => {} };
     const match = new Match({ map: 'random', length: 'long' }, tx);
     for (let i = 0; i < 4; i++) {
-      match.addPlayer({ name: BOT_NAMES[i], kind: 'bot', diff: ['hard', 'normal', 'normal', 'easy'][i], look: randomLook() });
+      match.addPlayer({ name: BOT_NAMES[i], kind: 'bot', diff: ['hard', 'normal', 'normal', 'easy'][i], persona: PERSONA_KEYS[i % 4], look: randomLook() });
     }
     this.demo = new Game(this, { mode: 'demo', match, localPid: -1 });
     match.start();
@@ -106,7 +108,7 @@ class App {
     const match = new Match({ map: st.map, length: st.length }, tx);
     const me = match.addPlayer({ name: save.name, title: titleOf(save), kind: 'local', look: sanitizeLook(save.look) });
     const names = shuffle(BOT_NAMES.slice());
-    for (let i = 0; i < st.bots; i++) match.addPlayer({ name: names[i], kind: 'bot', diff: st.diff, look: randomLook() });
+    for (let i = 0; i < st.bots; i++) match.addPlayer({ name: names[i], kind: 'bot', diff: st.diff, persona: persona(), look: randomLook() });
     this.game = new Game(this, { mode: 'solo', match, localPid: me.id });
     match.start();
   }
@@ -193,7 +195,7 @@ class App {
     if (!M || M.players.length >= MAX_PLAYERS) { toast('방이 가득 찼어요. (최대 6명)'); return; }
     const used = new Set(M.players.map((p) => p.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) || '봇' + M.players.length;
-    M.addPlayer({ name, kind: 'bot', diff: this.hostSettings.diff, look: randomLook() });
+    M.addPlayer({ name, kind: 'bot', diff: this.hostSettings.diff, persona: persona(), look: randomLook() });
   }
   removeLobbyPlayer(pid) {
     const M = this.match;

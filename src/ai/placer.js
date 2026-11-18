@@ -71,6 +71,26 @@ export function choosePlacement(world, type, diff, heat, ctx, r) {
         s += (hAt(heat, x, y - 1) + hAt(heat, x, y - 2)) * 0.6 - hAt(heat, x, y) * 0.3;
         if (helpful && fr) s -= Math.hypot(x - fr.x - 3, y - fr.y - 1) * 0.15;
         break;
+      case 'hammer': {
+        const id = world.occ[y * W + x];
+        const o = world.items.get(id);
+        if (!o) { s = -1e9; break; }
+        const lethal = ITEMS[o.type].cat === 'lethal';
+        // 막힌 판엔 치명 함정을 부수고, 아니면 남이 놓은 길(지형)을 부순다
+        s += (helpful ? (lethal ? 3 : -2) : (lethal ? -1 : 2)) + hArea(heat, x, y, 1) * 0.4 + (o.owner === ctx.owner ? -3 : 0);
+        break;
+      }
+      case 'tbomb': {
+        let terr = 0;
+        for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+          const cx = x + i, cy = y + j;
+          if (cx < 0 || cy < 0 || cx >= W || cy >= H || i * i + j * j > 6.25) continue;
+          const k = cy * W + cx;
+          if (world.terrain[k] && !world.noBuild[k] && !world.safeCell[k]) terr += 1 + hAt(heat, cx, cy - 1) * 2;
+        }
+        s += helpful ? -terr * 0.3 + hArea(heat, x, y, 2) * 0.2 : terr * 0.35 + hArea(heat, x, y, 2) * 0.15;
+        break;
+      }
       case 'bomb': {
         let n = 0;
         for (const o of world.items.values()) {

@@ -264,6 +264,21 @@ function buildNewSprites() {
     px(c, 5, 8, '#f0f0f0', 6, 4); px(c, 6, 9, '#1b1726', 1, 1); px(c, 9, 9, '#1b1726', 1, 1); px(c, 6, 12, '#f0f0f0', 4, 1);
     px(c, 11 - f, 1, '#b4f06a', 2, 1);
   }));
+  // 망치
+  SPR.hammer = make(16, 16, (c) => {
+    px(c, 7, 6, '#a8703f', 3, 10); px(c, 7, 6, '#d29a5e', 1, 10);
+    px(c, 2, 1, '#6a7080', 13, 6); px(c, 2, 1, '#a8b0c0', 13, 1); px(c, 2, 6, '#3a3f4c', 13, 1);
+    px(c, 1, 2, '#8a94a8', 1, 4); px(c, 15, 2, '#8a94a8', 1, 4);
+  });
+  // 지형 파괴 폭탄 (붉은 대형 폭탄)
+  SPR.tbomb = make(16, 16, (c) => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const d = Math.hypot(x - 7.5, y - 9);
+      if (d <= 6.4) px(c, x, y, d < 2.6 && x < 7 && y < 8 ? '#ff7a6a' : '#b8202a');
+    }
+    px(c, 6, 1, '#6a6f7c', 4, 2); px(c, 9, 0, '#ffd23f', 3, 1);
+    px(c, 5, 8, '#ffffff', 2, 2); px(c, 9, 8, '#ffffff', 2, 2); px(c, 6, 11, '#ffffff', 4, 1);
+  });
   // 지뢰 (2프레임, 칸 아래쪽에 놓임)
   SPR.mine = [0, 1].map((f) => make(16, 16, (c) => {
     px(c, 3, 12, '#3a3f4c', 10, 3); px(c, 4, 10, '#4a4e5e', 8, 2); px(c, 5, 9, '#4a4e5e', 6, 1);
@@ -304,6 +319,8 @@ export function iconFor(type) {
     case 'poison': return SPR.poison[0];
     case 'sawrail': return make(16, 16, (c) => { px(c, 0, 7, '#6a7080', 16, 2); c.drawImage(SPR.saw, 0, 0, 16, 16, 3, 3, 10, 10); }, false);
     case 'mine': return SPR.mine[1];
+    case 'hammer': return SPR.hammer;
+    case 'tbomb': return SPR.tbomb;
   }
   return SPR.wood;
 }

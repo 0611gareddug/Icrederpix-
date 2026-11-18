@@ -13,6 +13,7 @@ import { isTouch } from '../core/util.js';
 import { normCode } from '../net/net.js';
 import { ITEMS } from '../data/items.js';
 import { ACH, titleOf, xpNeed, MAX_LEVEL, checkAch } from '../data/progress.js';
+import { PERSONAS } from '../ai/bot.js';
 
 let timers = [], hooks = [];
 export function cleanup() {
@@ -47,7 +48,7 @@ export function showTitle(app) {
   const el = h('div', { class: 'screen title-screen', onclick: go },
     h('div', { class: 'logo' }, h('div', { class: 'en' }, 'TRAP BUILDERS'), h('div', { class: 'ko' }, '트랩빌더즈')),
     h('div', { class: 'press' }, isTouch() ? '화면을 터치해서 시작' : '아무 키나 눌러서 시작'),
-    h('div', { class: 'ver' }, 'v1.5'));
+    h('div', { class: 'ver' }, 'v1.6'));
   const tb = topbar();
   tb.addEventListener('click', (e) => e.stopPropagation());
   el.append(tb);
@@ -197,7 +198,7 @@ export function showLobby(app, m) {
     const color = SLOT_COLORS[i % SLOT_COLORS.length];
     const tags = [];
     if (p.kind === 'local' || (host && p.id === app.localPid)) tags.push(h('span', { class: 'tag host' }, '방장'));
-    else if (p.kind === 'bot') tags.push(h('span', { class: 'tag' }, '봇 · ' + ({ easy: '쉬움', normal: '보통', hard: '어려움' }[p.diff] || '보통')));
+    else if (p.kind === 'bot') tags.push(h('span', { class: 'tag' }, '봇 · ' + ({ easy: '쉬움', normal: '보통', hard: '어려움' }[p.diff] || '보통') + (PERSONAS[p.persona] ? ' · ' + PERSONAS[p.persona].name : '')));
     else tags.push(h('span', { class: 'tag ' + (p.ready ? 'ok' : '') }, p.ready ? '준비 완료' : '준비 중'));
     if (p.kind === 'remote' && p.ping) tags.push(h('span', { class: 'tag', style: { color: p.ping > 300 ? '#ffd23f' : '' } }, p.ping + 'ms'));
     const row = h('div', { class: 'pitem' }, h('span', { class: 'slotdot', style: { background: color } }), charCanvas(sanitizeLook(p.look), 2), h('span', { class: 'nm', style: { color } }, p.title ? h('span', { class: 'dim', style: { fontSize: '0.8em' } }, `「${p.title}」`) : null, p.name + (p.id === app.localPid ? ' (나)' : '')), ...tags);

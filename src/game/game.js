@@ -1,7 +1,8 @@
 // 게임 화면: 메시지를 받아 월드를 재현하고, 내 캐릭터를 조종하고, 그린다
 import { TILE, DT, clamp, lerp, now, isTouch } from '../core/util.js';
 import { World, W, H, SF } from '../engine/world.js';
-import { step, newBody, animOf, EV } from '../engine/physics.js';
+import { step, newBody, animOf, EV, NO_INPUT } from '../engine/physics.js';
+import { genCoins, COINS_PER_POINT } from './coins.js';
 import { Particles } from '../engine/particles.js';
 import { NavGraph } from '../ai/navgraph.js';
 import { Bot } from '../ai/bot.js';
@@ -20,6 +21,20 @@ import { showTouch } from '../ui/touch.js';
 import { vibrate } from '../ui/dom.js';
 import { shade, hsl } from '../core/util.js';
 
+const BOT_LINES = {
+  die: ['으악!', '앗…', '왜!!', 'ㅠㅠ', '억울해', '헉'],
+  goal: ['골인!', 'ㅋㅋ', '이지~', '개꿀', '나이스'],
+  kill: ['걸렸다ㅋ', '내 함정!', '계획대로', 'ㅋㅋㅋ'],
+  stomp: ['밟았다!', 'ㅋㅋㅋ', '미안~'],
+  stomped: ['아야!', '?!', '누구야', '으윽'],
+  reckless_die: ['또?!', 'ㅋㅋ죽음', '한번 더!'],
+  careful_die: ['조심했는데', '말도 안 돼'],
+  careful_goal: ['휴…', '안전 제일'],
+  prankster_stomp: ['헤헤', '꾹!', '방심했지'],
+  prankster_kill: ['낚였다ㅋ', '헤헤헤'],
+  collector_goal: ['코인 짱', '부자다'],
+  reckless_goal: ['돌격!', '가즈아'],
+};
 const PHASE_LABEL = { intro: '준비', pick: '파티 상자', place: '배치', run: '달리기', result: '결과', end: '게임 끝' };
 
 export class Game {
@@ -152,7 +167,7 @@ export class Game {
       const slot = p.slot ?? i;
       const color = SLOT_COLORS[slot % SLOT_COLORS.length];
       const ol = colorCount[p.look.color] > 1 ? shade(color, -0.25) : OL;
-      this.players.set(p.id, { id: p.id, name: p.name, title: p.title || '', look: p.look, kind: p.kind, diff: p.diff, slot, color, ol, score: 0, body: null, st: 'idle', buf: [], ghosts: [], emote: null, emoteT: 0, connected: true });
+      this.players.set(p.id, { id: p.id, name: p.name, title: p.title || '', persona: p.persona, look: p.look, kind: p.kind, diff: p.diff, slot, color, ol, score: 0, body: null, st: 'idle', buf: [], ghosts: [], emote: null, emoteT: 0, connected: true });
     });
     this.order = [...this.players.keys()];
     this.phase = 'intro';
@@ -223,7 +238,14 @@ export class Game {
     const removed = this.world.place(Object.assign({}, it));
     this.cursors.delete(it.owner);
     const cx = it.x * TILE + 8, cy = it.y * TILE + 8;
-    if (it.type === 'bomb') {
+    if (it.type === 'hammer') {
+      this.particles.burst(cx, cy, 20, ['#c8ccd8', '#8a94a8', '#a8703f'], 120, 0.7, 2, 400);
+      if (!this.demo) { sfx('slam'); this.addShake(3); }
+    } else if (it.type === 'tbomb') {
+      this.particles.burst(cx, cy, 60, ['#ffe14a', '#ff8a2a', '#ff3a00', '#b8202a'], 200, 0.9, 2, 200);
+      this.particles.burst(cx, cy, 30, ['#7a4f2e', '#5e3b21', '#6a7080'], 140, 1.2, 3, 500);
+      if (!this.demo) { sfx('explode'); this.addShake(9); }
+    } else if (it.type === 'bomb') {
       this.particles.burst(cx, cy, 40, ['#ffe14a', '#ff8a2a', '#ff3a00', '#5a5f70'], 160, 0.8, 2, 200);
       this.particles.burst(cx, cy, 16, '#3a3c4a', 60, 1.2, 3, -20);
       if (!this.demo) { sfx('explode'); this.addShake(6); }
@@ -262,9 +284,11 @@ export class Game {
       p.body.face = 1;
       p.st = 'run';
       p.fx = false;
-      p.bot = this.isHost && p.kind === 'bot' ? new Bot(p.diff || 'normal', p.id * 131 + this.round * 7) : null;
+      p.bot = this.isHost && p.kind === 'bot' ? new Bot(p.diff || 'normal', p.id * 131 + this.round * 7, p.persona) : null;
     }
     this.graph = this.isHost && [...this.players.values()].some((p) => p.bot) ? new NavGraph(this.world) : null;
+    this.coins = genCoins(this.world, this.round || 1);
+    for (const p of this.players.values()) { p.coinSet = new Set(); p.coinN = 0; p.stunT = 0; p.immuneT = 0; p.stompAt = new Map(); }
     this.spec = 0;
     const me = this.players.get(this.localPid);
     if (me && me.body) this.snapTo(me.body);
@@ -275,11 +299,11 @@ export class Game {
   m_pss(m) {
     const tnow = now();
     for (const s of m.a) {
-      const [pid, x, y, fi, face, hh] = s;
+      const [pid, x, y, fi, face, hh, sn] = s;
       if (pid === this.localPid) continue;
       const p = this.players.get(pid);
       if (!p || (this.isHost && p.bot)) continue;
-      p.buf.push({ t: tnow, x, y, fi, face, h: hh });
+      p.buf.push({ t: tnow, x, y, fi, face, h: hh, sn });
       if (p.buf.length > 12) p.buf.shift();
     }
   }
@@ -287,7 +311,7 @@ export class Game {
   onPs(pid, s) {
     const p = this.players.get(pid);
     if (!p || this.phase !== 'run') return;
-    p.buf.push({ t: now(), x: s[0], y: s[1], fi: s[2], face: s[3], h: s[4] });
+    p.buf.push({ t: now(), x: s[0], y: s[1], fi: s[2], face: s[3], h: s[4], sn: s[5] });
     if (p.buf.length > 12) p.buf.shift();
     p.last = s;
   }
@@ -300,6 +324,10 @@ export class Game {
       if (m.pid === this.localPid && res.goal) {
         if (res.order === 1) save.stats.firstGoals++;
         if (this.lastSurvivorLocal) save.stats.lastSurvivorGoals++;
+      }
+      if (res.dead && res.killer > 0) {
+        const kit = this.world.items.get(res.killer);
+        if (kit && kit.owner !== m.pid) this.botSay(this.players.get(kit.owner), 'kill');
       }
       if (res.dead && res.killer > 0 && m.pid !== this.localPid) {
         const it = this.world.items.get(res.killer);
@@ -339,8 +367,8 @@ export class Game {
       if (id === this.localPid && !this.demo) save.stats.bestRoundKills = Math.max(save.stats.bestRoundKills, Math.round(g.kills / PTS.kill));
       const before = p.score;
       const sc = m.scores.find((s) => s[0] === id);
-      p.score = sc ? sc[1] : before + g.goal + g.kills;
-      rows.push({ name: p.name, color: p.color, look: p.look, before, goal: g.goal, kills: g.kills, after: p.score });
+      p.score = sc ? sc[1] : before + g.goal + g.kills + (g.coin || 0);
+      rows.push({ name: p.name, color: p.color, look: p.look, before, goal: g.goal, kills: g.kills, coin: g.coin || 0, after: p.score });
     }
     if (this.hud) {
       this.hud.hideSpectate();
@@ -365,6 +393,7 @@ export class Game {
       if (st.goals) coinLines.push([`골인 ${st.goals}회`, st.goals * 5]);
       if (st.kills) coinLines.push([`함정 처치 ${st.kills}회`, st.kills * 2]);
       if (won) coinLines.push(['우승!', 30]);
+      if (this.coinsPicked) coinLines.push([`코인 줍기 ${this.coinsPicked}개`, this.coinsPicked]);
       if (claimDaily()) coinLines.push(['오늘 첫 판', 20]);
       const total = coinLines.reduce((a, b) => a + b[1], 0);
       save.coins += total;
@@ -458,6 +487,12 @@ export class Game {
     if (this.paused) return;
     if (this.match) this.match.tick(dt);
     this.flush();
+    if (this.says && this.says.length) {
+      for (let i = this.says.length - 1; i >= 0; i--) {
+        const s2 = this.says[i];
+        if (this.time >= s2.at) { this.says.splice(i, 1); if (this.match) this.match.handle(s2.pid, { t: 'emote', e: s2.text }); }
+      }
+    }
     this.time += dt;
     this.frame++;
     this.phaseLeft -= dt;
@@ -506,7 +541,9 @@ export class Game {
     this.runT += dt;
     const t = this.runT;
     const left = this.cd + this.dur - t;
-    if (this.hud) this.hud.setPhase(t < this.cd ? '곧 출발!' : PHASE_LABEL.run, t < this.cd ? null : left, 10);
+    const meP = this.players.get(this.localPid);
+    const coinTxt = meP && this.coins ? ` · 🪙${meP.coinN || 0}` : '';
+    if (this.hud) this.hud.setPhase(t < this.cd ? '곧 출발!' : PHASE_LABEL.run + coinTxt, t < this.cd ? null : left, 10);
     const cnt = Math.ceil(this.cd - t);
     if (cnt !== this.lastCount) {
       this.lastCount = cnt;
@@ -520,8 +557,11 @@ export class Game {
       const me = this.players.get(this.localPid);
       for (const p of this.players.values()) {
         if (p.st !== 'run' || !p.body) continue;
-        if (p.id === this.localPid) this.stepPlayer(p, readInput(this.nearLadder(p.body)), t, true);
-        else if (p.bot) this.stepPlayer(p, p.bot.update(p.body, this.world, this.graph, t, dt), t, false);
+        if (p.immuneT > 0) p.immuneT -= dt;
+        const stunned = p.stunT > 0;
+        if (stunned) p.stunT -= dt;
+        if (p.id === this.localPid) this.stepPlayer(p, stunned ? NO_INPUT : readInput(this.nearLadder(p.body)), t, true);
+        else if (p.bot) this.stepPlayer(p, stunned ? NO_INPUT : p.bot.update(p.body, this.world, this.graph, t, dt, this.botCtx(p)), t, false);
       }
       const bodies = [];
       for (const p of this.players.values()) { const b = this.bodyPos(p); if (b && p.st === 'run') bodies.push(b); }
@@ -582,9 +622,83 @@ export class Game {
     void audible;
     const hz = this.world.hazard(b, t);
     if (hz !== undefined) { this.die(p, hz, local); return; }
-    if (this.world.touchGoal(b)) this.reachGoal(p, local);
+    if (this.world.touchGoal(b)) { this.reachGoal(p, local); return; }
+    this.pickCoins(p, b, local);
+    this.checkStomp(p, b, t, local);
+  }
+  pickCoins(p, b, local) {
+    if (!this.coins) return;
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    for (let i = 0; i < this.coins.length; i++) {
+      if (p.coinSet.has(i)) continue;
+      const c = this.coins[i];
+      if (Math.abs(cx - c.x) > 10 || Math.abs(cy - c.y) > b.h / 2 + 6) continue;
+      p.coinSet.add(i); p.coinN++;
+      this.particles.burst(c.x, c.y, 8, ['#ffe14a', '#fff6b0', '#c79a10'], 60, 0.45, 1, 0);
+      const msg = { t: 'coin', n: p.coinN };
+      if (local) { sfx('coin'); this.coinsPicked = (this.coinsPicked || 0) + 1; this.toHost(msg); if (p.coinN % COINS_PER_POINT === 0 && this.hud) this.hud.sub(`🪙 코인 ${p.coinN}개! +1점`, 1200); }
+      else if (p.bot) this.match.handle(p.id, msg);
+    }
+  }
+  // 밟기: 떨어지면서 다른 플레이어 머리에 닿으면 튀어 오르고 상대는 기절
+  checkStomp(p, b, t, local) {
+    if (b.vy < 60 || this.world.inSafe(b)) return;
+    const bottom = b.y + b.h;
+    for (const q of this.players.values()) {
+      if (q === p || q.st !== 'run') continue;
+      const qb = this.bodyPos(q);
+      if (!qb || this.world.inSafe(qb)) continue;
+      if (b.x + b.w < qb.x + 2 || b.x > qb.x + qb.w - 2) continue;
+      if (bottom < qb.y - 2 || bottom > qb.y + 9) continue;
+      if ((p.stompAt.get(q.id) || -9) > t - 1) continue;
+      p.stompAt.set(q.id, t);
+      b.y = qb.y - b.h; b.vy = -250; b.noCut = true; b.airDash = false; b.dash = 0;
+      const msg = { t: 'stomp', target: q.id };
+      if (local) { sfx('bounce'); this.toHost(msg); }
+      else if (p.bot) this.match.handle(p.id, msg);
+      break;
+    }
+  }
+  m_stomped(m) {
+    const q = this.players.get(m.pid);
+    if (!q) return;
+    const qb = this.bodyPos(q);
+    if (qb) {
+      for (let i = 0; i < 6; i++) this.particles.spawn(qb.x + 5, qb.y - 2, (Math.random() - 0.5) * 80, -40 - Math.random() * 50, 0.6, '#ffe14a', 1, 200, 2);
+      if (!this.demo && this.isVisible(qb)) sfx('slam');
+    }
+    const mine = q.id === this.localPid || (this.isHost && q.bot);
+    if (mine && q.body && q.st === 'run' && !(q.immuneT > 0)) {
+      q.stunT = 1.0; q.immuneT = 1.8; q.body.vx = 0;
+      if (q.id === this.localPid) { this.addShake(3); if (save.settings.vibrate) vibrate(40); if (this.hud) this.hud.sub('💫 밟혔어요! 기절', 900); }
+    }
+    this.onStompReact && this.onStompReact(m);
+  }
+  botCtx(p) {
+    const others = [];
+    for (const q of this.players.values()) if (q !== p && q.st === 'run') { const b = this.bodyPos(q); if (b) others.push(b); }
+    const coins = this.coins ? this.coins.filter((c, i) => !p.coinSet || !p.coinSet.has(i)) : null;
+    return { others, coins };
+  }
+  // 봇 말풍선 반응 (방장/데모에서만 결정해서 모두에게 전송)
+  botSay(p, kind) {
+    if (!p || !p.bot || !this.match) return;
+    if (this.time - (p.lastSay || -9) < 2 || Math.random() > 0.6) return;
+    p.lastSay = this.time;
+    const L = BOT_LINES[kind] || [];
+    const P = (BOT_LINES[p.persona + '_' + kind] || []);
+    const pool = P.length && Math.random() < 0.6 ? P : L;
+    if (!pool.length) return;
+    const text = pool[Math.floor(Math.random() * pool.length)];
+    (this.says = this.says || []).push({ at: this.time + 0.2 + Math.random() * 0.6, pid: p.id, text });
+  }
+  onStompReact(m) {
+    const a = this.players.get(m.by), v = this.players.get(m.pid);
+    this.botSay(a, 'stomp');
+    this.botSay(v, 'stomped');
   }
   die(p, killer, local) {
+    if (p.bot) this.botSay(p, 'die');
     p.st = 'dead'; p.fx = true;
     const b = p.body;
     this.fxDeath(p, b.x + 5, b.y + b.h / 2, local);
@@ -593,6 +707,7 @@ export class Game {
     else if (p.bot) this.match.handle(p.id, { t: 'fin', res });
   }
   reachGoal(p, local) {
+    if (p.bot) this.botSay(p, 'goal');
     p.st = 'goal'; p.fx = true;
     const b = p.body;
     this.fxGoal(p, b.x + 5, b.y + 10);
@@ -601,7 +716,7 @@ export class Game {
   }
 
   syncStates() {
-    const enc = (p, b) => [p.id, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, FRAME_NAMES.indexOf(this.frameOf(p, b)), b.face, b.h];
+    const enc = (p, b) => [p.id, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, FRAME_NAMES.indexOf(this.frameOf(p, b)), b.face, b.h, p.stunT > 0 ? 1 : 0];
     if (this.isHost) {
       const a = [];
       for (const p of this.players.values()) {
@@ -774,7 +889,7 @@ export class Game {
       if (rt >= b.t) a = b;
       const k = b.t === a.t ? 1 : clamp((rt - a.t) / (b.t - a.t), 0, 1);
       const s = k > 0.5 ? b : a;
-      return { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), w: 10, h: s.h, fi: s.fi, face: s.face, remote: true };
+      return { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), w: 10, h: s.h, fi: s.fi, face: s.face, remote: true, sn: s.sn };
     }
     return p.body;
   }
@@ -798,7 +913,7 @@ export class Game {
         bodies.push({
           img: d.img, dx: d.dx, dy: d.dy, crouch: d.h < 20, ghosts: p.ghosts,
           name: this.demo ? null : this.online ? (isMe ? '나' : (p.title ? `「${p.title}」` : '') + p.name) : isMe ? '나' : null,
-          slotColor: p.color, emote: p.emote, me: isMe,
+          slotColor: p.color, emote: p.emote, me: isMe, stun: b.remote ? !!b.sn : p.stunT > 0,
         });
       }
       bodies.sort((a, b) => (a.me ? 1 : 0) - (b.me ? 1 : 0));
@@ -811,9 +926,17 @@ export class Game {
       cam, t: wt, bodies, particles: this.particles,
       place: this.phase === 'place' && !this.demo ? this.placeView() : (this.phase === 'place' && this.demo ? { cursors: [] } : null),
       names: !this.demo, bounce: this.bounce,
+      coins: this.phase === 'run' && this.coins ? this.coinView() : null,
     });
     // 이모티콘 말풍선
     if (bodies.some((b) => b.emote)) this.drawEmotes(bodies, cam);
+  }
+  coinView() {
+    const me = this.players.get(this.localPid);
+    let who = me && me.st === 'run' ? me : null;
+    if (!who) { const runners = [...this.players.values()].filter((q) => q.st === 'run'); who = runners.length ? runners[((this.spec % runners.length) + runners.length) % runners.length] : me; }
+    const taken = who && who.coinSet ? who.coinSet : null;
+    return this.coins.filter((c, i) => !taken || !taken.has(i));
   }
   drawEmotes(bodies, cam) {
     const r = this.renderer, ctx = r.ctx;

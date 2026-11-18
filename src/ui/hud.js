@@ -154,19 +154,21 @@ export class Hud {
       base.style.setProperty('--c', r.color);
       const g = h('div', { class: 'seg g', style: { left: pct(r.before), width: '0' } });
       const k = h('div', { class: 'seg k', style: { left: pct(r.before + r.goal), width: '0' } });
+      const cn = h('div', { class: 'seg cn', style: { left: pct(r.before + r.goal + r.kills), width: '0' } });
       const plus = h('span', { class: 'plus' }, '');
       const pt = h('span', { class: 'pt' }, String(r.before));
       box.append(h('div', { class: 'resrow' }, charCanvas(r.look, 2, r.goal ? 'win0' : 'idle0'), h('span', { class: 'nm', style: { color: r.color } }, r.name),
-        h('div', { class: 'resbar' }, base, g, k, h('div', { class: 'goalline', style: { left: pct(target) } })), plus, pt));
+        h('div', { class: 'resbar' }, base, g, k, cn, h('div', { class: 'goalline', style: { left: pct(target) } })), plus, pt));
       anims.push(() => {
-        g.style.width = pct(r.goal); k.style.width = pct(r.kills);
-        if (r.goal || r.kills) { plus.textContent = '+' + (r.goal + r.kills); pt.textContent = String(r.after); }
+        g.style.width = pct(r.goal); k.style.width = pct(r.kills); cn.style.width = pct(r.coin || 0);
+        const add = r.goal + r.kills + (r.coin || 0);
+        if (add) { plus.textContent = '+' + add; pt.textContent = String(r.after); }
       });
     }
-    box.append(h('div', { class: 'legend' }, h('span', null, h('i', { style: { background: '#ffd23f' } }), '골인 +5'), h('span', null, h('i', { style: { background: '#ff5a5a' } }), '함정 처치 +2'), h('span', null, h('i', { style: { background: '#fff' } }), `목표 ${target}점`)));
+    box.append(h('div', { class: 'legend' }, h('span', null, h('i', { style: { background: '#ffd23f' } }), '골인 +5'), h('span', null, h('i', { style: { background: '#ff5a5a' } }), '함정 처치 +2'), h('span', null, h('i', { style: { background: '#ffa43a' } }), '코인 3개 +1'), h('span', null, h('i', { style: { background: '#fff' } }), `목표 ${target}점`)));
     this.resEl = h('div', { class: 'result' }, box);
     this.layer.append(this.resEl);
-    setTimeout(() => { anims.forEach((f, i) => setTimeout(() => { f(); if (rows[i].goal || rows[i].kills) sfx('score'); }, i * 160)); }, 450);
+    setTimeout(() => { anims.forEach((f, i) => setTimeout(() => { f(); if (rows[i].goal || rows[i].kills || rows[i].coin) sfx('score'); }, i * 160)); }, 450);
   }
   hideResult() { if (this.resEl) { this.resEl.remove(); this.resEl = null; } }
 

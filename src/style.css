@@ -214,6 +214,7 @@ input[type=range] { width: 100%; accent-color: var(--yellow); }
 .resbar .base { background: var(--c); }
 .resbar .g { background: #ffd23f; }
 .resbar .k { background: #ff5a5a; }
+.resbar .cn { background: #ffa43a; }
 .resbar .goalline { position: absolute; top: -4px; bottom: -4px; width: 3px; background: #fff; }
 .resrow .pt { width: 3.5em; text-align: right; }
 .resrow .plus { width: 3.2em; color: var(--yellow); font-size: 0.85em; }

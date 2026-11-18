@@ -1,4 +1,4 @@
-// 함정·블록 29종 정의
+// 함정·블록 31종 정의
 // cat: terrain(지형) / obstacle(방해) / lethal(치명) / special
 // rots: 허용 회전값 (0=위,1=오른쪽,2=아래,3=왼쪽)
 export const ITEMS = {
@@ -31,6 +31,8 @@ export const ITEMS = {
   sawrail:   { name: '움직이는 톱날', cat: 'lethal',   rots: [0, 1], w: 1, h: 1, desc: '레일 4칸을 왕복해요 (회전: 가로/세로)' },
   mine:      { name: '지뢰',          cat: 'lethal',   rots: [0], w: 1, h: 1, desc: '밟으면 0.5초 뒤 터져요' },
   bomb:      { name: '폭탄',          cat: 'special',  rots: [0], w: 1, h: 1, desc: '놓는 순간 주변 블록을 날려요' },
+  hammer:    { name: '망치',          cat: 'special',  rots: [0], w: 1, h: 1, desc: '놓인 블록·함정 1개를 골라 부숴요' },
+  tbomb:     { name: '지형 파괴 폭탄', cat: 'special',  rots: [0], w: 1, h: 1, desc: '맵 지형까지 반경 2칸을 날려요' },
 };
 export const ITEM_KEYS = Object.keys(ITEMS);
 
@@ -52,14 +54,19 @@ export function phaseOf(id, type) {
 
 // 파티 상자 생성
 export function makeBox(count, round, placedCount, r) {
-  const pool = ITEM_KEYS.filter((k) => k !== 'bomb');
+  const SPECIAL = ['bomb', 'hammer', 'tbomb'];
+  const pool = ITEM_KEYS.filter((k) => !SPECIAL.includes(k));
   const res = [];
   const cnt = {};
-  const bombChance = round >= 3 ? Math.min(0.12 + placedCount * 0.012, 0.45) : 0;
-  let hasBomb = false;
+  // 파괴 아이템: 2라운드부터, 맵에 놓인 게 많을수록 자주
+  const bombChance = round >= 2 ? Math.min(0.14 + placedCount * 0.012, 0.5) : 0;
+  let specials = 0;
   while (res.length < count) {
     let k;
-    if (!hasBomb && r() < bombChance) { k = 'bomb'; hasBomb = true; }
+    if (specials < 2 && r() < bombChance) {
+      k = placedCount > 0 ? SPECIAL[Math.floor(r() * 3)] : 'tbomb';
+      specials++;
+    }
     else k = pool[Math.floor(r() * pool.length)];
     if ((cnt[k] || 0) >= 2) continue;
     cnt[k] = (cnt[k] || 0) + 1;
@@ -67,7 +74,7 @@ export function makeBox(count, round, placedCount, r) {
   }
   if (!res.some((k) => ITEMS[k].cat === 'terrain')) {
     const terr = pool.filter((k) => ITEMS[k].cat === 'terrain');
-    const idx = res.findIndex((k) => k !== 'bomb');
+    const idx = res.findIndex((k) => !SPECIAL.includes(k));
     res[idx] = terr[Math.floor(r() * terr.length)];
   }
   return res;

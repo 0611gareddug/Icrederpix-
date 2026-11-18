@@ -3,9 +3,9 @@ import { TILE, approach, sign, rectsOverlap } from '../core/util.js';
 import { S_SOLID, S_ONEWAY, S_LADTOP, SF, W } from './world.js';
 
 export const P = {
-  G: 900, JUMP_V: 275, MAX_FALL: 288, RUN: 96, CROUCH: 48,
+  G: 900, JUMP_V: 294, MAX_FALL: 288, RUN: 96, CROUCH: 48,
   ACC_G: 1200, DEC_G: 1600, ACC_A: 900, DEC_A: 520,
-  WALL_SLIDE: 48, WJ_VX: 170, WJ_VY: 255, WJ_LOCK: 0.15,
+  WALL_SLIDE: 48, WJ_VX: 170, WJ_VY: 270, WJ_LOCK: 0.15,
   DASH_V: 270, DASH_T: 0.13, DASH_CD: 0.6,
   COYOTE: 0.1, BUFFER: 0.1, SLIDE_T: 0.4,
   STAND_H: 20, CROUCH_H: 12, BW: 10,

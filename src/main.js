@@ -97,6 +97,7 @@ class App {
   // ---------------- 혼자 하기 ----------------
   startSolo(st) {
     this.soloSettings = st;
+    closeModals();
     this.stopDemo();
     this.setScreen(null);
     const tx = { broadcast: (m) => this.game && this.game.onMsg(m), sendTo: (pid, m) => this.game && this.game.onMsg(m) };
@@ -167,6 +168,7 @@ class App {
     M.start();
   }
   beginNetGame() {
+    closeModals();
     this.stopDemo();
     this.lobby = null;
     this.setScreen(null);
@@ -277,6 +279,7 @@ class App {
   }
 }
 
+function closeModals() { document.querySelectorAll('.modal').forEach((m) => m.remove()); }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 export function randomLook() {
   const r = (n) => Math.floor(Math.random() * n);

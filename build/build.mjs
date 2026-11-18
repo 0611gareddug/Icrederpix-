@@ -32,10 +32,8 @@ if (!dev) {
   const t0 = Date.now();
   code = JavaScriptObfuscator.obfuscate(code, {
     compact: true,
-    controlFlowFlattening: true,
-    controlFlowFlatteningThreshold: 0.15,
-    deadCodeInjection: true,
-    deadCodeInjectionThreshold: 0.08,
+    controlFlowFlattening: false,
+    deadCodeInjection: false,
     debugProtection: true,
     debugProtectionInterval: 3000,
     disableConsoleOutput: false,

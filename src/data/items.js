@@ -8,7 +8,6 @@ export const ITEMS = {
   tramp:     { name: '트램펄린',      cat: 'terrain',  rots: [0, 1, 3], w: 1, h: 1, desc: '밟으면 높이 튕겨요' },
   movplat:   { name: '움직이는 발판', cat: 'terrain',  rots: [0, 1], w: 2, h: 1, desc: '4칸을 왕복해요 (회전: 가로/세로)' },
   conveyor:  { name: '컨베이어',      cat: 'terrain',  rots: [1, 3], w: 3, h: 1, desc: '위에 서면 한쪽으로 밀어요' },
-  teleporter:{ name: '텔레포터',      cat: 'terrain',  rots: [0], w: 1, h: 1, pair: true, desc: '두 개를 놓으면 서로 이어져요' },
   ice:       { name: '얼음 블록',     cat: 'obstacle', rots: [0], w: 1, h: 1, desc: '미끄러워서 멈추기 어려워요' },
   sticky:    { name: '끈끈이 블록',   cat: 'obstacle', rots: [0], w: 1, h: 1, desc: '느려지고 낮게 뛰어요' },
   crumble:   { name: '무너지는 발판', cat: 'obstacle', rots: [0], w: 1, h: 1, desc: '밟으면 0.5초 뒤 무너져요' },

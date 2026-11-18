@@ -87,28 +87,13 @@ export function choosePlacement(world, type, diff, heat, ctx, r) {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       for (const rot of d.rots) {
-        if (d.pair) {
-          if (!world.cellFree(x, y)) continue;
-        } else if (!world.canPlace(type, x, y, rot)) continue;
+        if (!world.canPlace(type, x, y, rot)) continue;
         const s = evalCand(x, y, rot);
         if (s > bestS) { bestS = s; best = { x, y, rot }; }
       }
     }
   }
   if (!best) return null;
-  if (d.pair) {
-    // 두 번째 텔레포터: 멀리 떨어진 빈 칸
-    let b2 = null, bs = -Infinity;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if ((x === best.x && y === best.y) || !world.cellFree(x, y)) continue;
-      const dist = Math.hypot(x - best.x, y - best.y);
-      if (dist < 6) continue;
-      const s = r() * 4 + (helpful && fr ? -Math.hypot(x - fr.x - 6, y - fr.y) * 0.4 : 0);
-      if (s > bs) { bs = s; b2 = { x, y }; }
-    }
-    if (!b2) return null;
-    best.x2 = b2.x; best.y2 = b2.y;
-  }
   return best;
 }
 

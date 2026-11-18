@@ -13,14 +13,14 @@ export const P = {
 };
 
 // 이벤트 비트
-export const EV = { JUMP: 1, LAND: 2, WJUMP: 4, DASH: 8, BOUNCE: 16, SLIDE: 32, TELE: 64, WALL: 128, STEP: 256 };
+export const EV = { JUMP: 1, LAND: 2, WJUMP: 4, DASH: 8, BOUNCE: 16, SLIDE: 32, WALL: 128, STEP: 256 };
 
 export function newBody(x, feetY) {
   return {
     x: x - P.BW / 2, y: feetY - P.STAND_H, w: P.BW, h: P.STAND_H,
     vx: 0, vy: 0, ground: false, gsurf: 0, coyote: 0, buf: 0, held: false,
     crouch: false, slide: 0, dash: 0, dashCd: 0, dvx: 0, dvy: 0, airDash: false,
-    wall: 0, wallOk: false, lock: 0, lockDir: 0, climb: false, face: 1, tpCd: 0,
+    wall: 0, wallOk: false, lock: 0, lockDir: 0, climb: false, face: 1,
     plat: -1, noCut: false, ev: 0, px: 0, py: 0, walkT: 0, fallV: 0,
   };
 }
@@ -63,7 +63,6 @@ export function step(b, inp, world, t, dt, mode = 0) {
   b.held = inp.jump;
   if (b.dashCd > 0) b.dashCd -= dt;
   if (b.lock > 0) b.lock -= dt;
-  if (b.tpCd > 0) b.tpCd -= dt;
   const surf = b.ground ? b.gsurf : 0;
   let exDx = 0, exDy = 0;
 
@@ -215,16 +214,6 @@ export function step(b, inp, world, t, dt, mode = 0) {
     }
   }
 
-  // 텔레포터
-  if (b.tpCd <= 0 && world.tele.size) {
-    const tx = Math.floor((b.x + b.w / 2) / TILE), ty = Math.floor((b.y + b.h / 2) / TILE);
-    const d = world.tele.get(ty * W + tx);
-    if (d) {
-      b.x = d.x * TILE + 8 - b.w / 2;
-      b.y = d.y * TILE + 8 - b.h / 2;
-      b.tpCd = 0.6; b.ev |= EV.TELE; b.ground = false; b.plat = -1;
-    }
-  }
   if (b.ground && Math.abs(b.vx) > 10) b.walkT += dt * Math.abs(b.vx) / 60;
 }
 

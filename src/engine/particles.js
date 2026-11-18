@@ -8,10 +8,11 @@ export class Particles {
     this.g = new Float32Array(N); this.size = new Uint8Array(N);
     this.col = new Array(N).fill('#fff');
     this.shape = new Uint8Array(N); // 0 사각, 1 하트, 2 별, 3 왕관
-    this.n = 0; this.head = 0;
+    this.n = 0; this.head = 0; this.alive = 0;
   }
   spawn(x, y, vx, vy, life, col, size = 1, g = 0, shape = 0) {
     const i = this.head;
+    if (this.life[i] <= 0) this.alive++;
     this.head = (this.head + 1) % N;
     this.x[i] = x; this.y[i] = y; this.vx[i] = vx; this.vy[i] = vy;
     this.life[i] = life; this.max[i] = life; this.col[i] = col; this.size[i] = size; this.g[i] = g; this.shape[i] = shape;
@@ -26,14 +27,17 @@ export class Particles {
     for (let k = 0; k < n; k++) this.spawn(x + (Math.random() - 0.5) * 8, y - 1, (Math.random() - 0.5) * 40, -Math.random() * 25, 0.3 + Math.random() * 0.2, col, 2, 40);
   }
   update(dt) {
+    if (!this.alive) return;
     for (let i = 0; i < N; i++) {
       if (this.life[i] <= 0) continue;
       this.life[i] -= dt;
+      if (this.life[i] <= 0) { this.alive--; continue; }
       this.vy[i] += this.g[i] * dt;
       this.x[i] += this.vx[i] * dt; this.y[i] += this.vy[i] * dt;
     }
   }
   draw(ctx, vx0, vy0, vx1, vy1) {
+    if (!this.alive) return;
     for (let i = 0; i < N; i++) {
       if (this.life[i] <= 0) continue;
       const x = this.x[i], y = this.y[i];
@@ -51,5 +55,5 @@ export class Particles {
     }
     ctx.globalAlpha = 1;
   }
-  clear() { this.life.fill(0); }
+  clear() { this.life.fill(0); this.alive = 0; }
 }

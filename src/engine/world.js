@@ -73,10 +73,9 @@ export class World {
     for (const ic of this.icicles) occ[ic.y * W + ic.x] = -2;
     this.spikes = []; this.saws = []; this.arrows = []; this.flames = [];
     this.maces = []; this.lasers = []; this.holes = []; this.movers = [];
-    this.tele = new Map(); this.teles = []; this.crumbles = [];
+    this.crumbles = [];
     for (const it of this.items.values()) {
       for (const [cx, cy] of itemCells(it.type, it.x, it.y, it.rot)) occ[cy * W + cx] = it.id;
-      if (it.type === 'teleporter') occ[it.y2 * W + it.x2] = it.id;
       const i = it.y * W + it.x;
       switch (it.type) {
         case 'wood': solid[i] = S_SOLID; surf[i] = SF.WOOD; break;
@@ -95,11 +94,6 @@ export class World {
         case 'mace': this.maces.push(it); break;
         case 'blackhole': this.holes.push(it); break;
         case 'movplat': this.movers.push(it); break;
-        case 'teleporter':
-          this.tele.set(i, { x: it.x2, y: it.y2 });
-          this.tele.set(it.y2 * W + it.x2, { x: it.x, y: it.y });
-          this.teles.push(it);
-          break;
       }
     }
     // 사다리 꼭대기는 한쪽 통과 발판처럼 동작
@@ -304,15 +298,11 @@ export class World {
   resetDynamic() { this.crS.fill(0); this.crT.fill(0); }
 
   // ---------- 배치 ----------
-  canPlace(type, x, y, rot, x2, y2) {
+  canPlace(type, x, y, rot) {
     const d = ITEMS[type];
     if (!d || !d.rots.includes(rot)) return false;
     if (type === 'bomb') return x >= 0 && y >= 0 && x < W && y < H;
     const cells = itemCells(type, x, y, rot);
-    if (d.pair) {
-      if (x2 === undefined || (x2 === x && y2 === y)) return false;
-      cells.push([x2, y2]);
-    }
     for (const [cx, cy] of cells) {
       if (cx < 0 || cy < 0 || cx >= W || cy >= H) return false;
       const i = cy * W + cx;
@@ -336,7 +326,6 @@ export class World {
     const removed = [];
     for (const it of this.items.values()) {
       const cells = itemCells(it.type, it.x, it.y, it.rot);
-      if (it.type === 'teleporter') cells.push([it.x2, it.y2]);
       if (cells.some(([cx, cy]) => (cx - x) ** 2 + (cy - y) ** 2 <= 6.25)) removed.push(it.id);
     }
     for (const id of removed) this.items.delete(id);

@@ -9,6 +9,7 @@ index.html        진입 페이지
 game.min.js       난독화된 게임 코드 (빌드 결과물)
 style.css         스타일 (빌드 결과물)
 fonts/            갈무리 픽셀 글꼴 (OFL)
+audio/bgm.mp3     배경음악
 icon-*.png        아이콘, manifest.json  홈 화면 추가용
 src/              원본 코드 (수정은 여기서)
 build/            빌드 스크립트 (번들 + 난독화)

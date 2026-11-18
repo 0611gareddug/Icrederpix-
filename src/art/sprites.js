@@ -156,19 +156,6 @@ export function buildSprites() {
     }
     px(c, 6, 2, '#6a6f7c', 4, 2); px(c, 9, 0, '#c89a5a', 1, 2); px(c, 10, 0, '#ffd23f', 2, 1); px(c, 5, 6, '#9aa0ae', 2, 1);
   });
-  // 텔레포터 (색은 그릴 때 입힘) 4프레임 흰색 링
-  SPR.tele = [];
-  for (let f = 0; f < 4; f++) {
-    SPR.tele.push(make(16, 16, (c) => {
-      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-        const dx = x - 7.5, dy = (y - 7.5) * 0.85, d = Math.hypot(dx, dy);
-        if (d > 7.3) continue;
-        const a = Math.atan2(dy, dx) - f * Math.PI / 6 + d * 0.35;
-        const on = Math.sin(a * 2) > 0;
-        px(c, x, y, d < 2.5 ? '#ffffff' : on ? '#ffffffcc' : '#ffffff55');
-      }
-    }, false));
-  }
   // 골 깃발 3프레임 (16x32)
   SPR.flag = [];
   for (let f = 0; f < 3; f++) {
@@ -205,7 +192,6 @@ export function iconFor(type) {
     case 'tramp': return SPR.tramp[0];
     case 'movplat': return make(16, 16, (c) => { c.drawImage(SPR.movplat, 0, 0, 32, 8, 0, 5, 16, 4); c.drawImage(SPR.movplat, 16, 0, 16, 8, 8, 5, 8, 4); px(c, 1, 11, '#ffd23f', 3, 1); px(c, 12, 11, '#ffd23f', 3, 1); px(c, 0, 10, '#ffd23f', 1, 3); px(c, 15, 10, '#ffd23f', 1, 3); }, false);
     case 'conveyor': return SPR.conv[0];
-    case 'teleporter': return tint(SPR.tele[0], '#b06aff');
     case 'ice': return SPR.ice;
     case 'sticky': return SPR.sticky;
     case 'crumble': return SPR.crumble;

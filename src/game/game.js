@@ -197,10 +197,9 @@ export class Game {
     if (this.hud) this.hud.hidePick();
     if (type && !this.demo) {
       const c = this.mapCenter();
-      this.place = { type, x: Math.floor(c.x / TILE), y: Math.floor(c.y / TILE), rot: ITEMS[type].rots[0], done: false, a: null, lastSent: 0, dirty: true };
+      this.place = { type, x: Math.floor(c.x / TILE), y: Math.floor(c.y / TILE), rot: ITEMS[type].rots[0], done: false, lastSent: 0, dirty: true };
       this.validate();
       this.hud.showPlace(type, { rotate: () => this.rotate(), confirm: () => this.confirmPlace() });
-      if (ITEMS[type].pair) this.hud.placeHint(isTouch() ? '첫 번째 텔레포터 위치를 정하고 [놓기]' : '첫 번째 텔레포터 위치를 클릭');
     } else {
       this.place = null;
       if (this.hud) this.hud.placeDone('고른 아이템이 없어요');
@@ -210,7 +209,7 @@ export class Game {
     if (m.pid === this.localPid) return;
     const p = this.players.get(m.pid);
     if (!p || !this.picks) return;
-    this.cursors.set(m.pid, { x: m.x, y: m.y, rot: m.rot, x2: m.x2, y2: m.y2, type: this.picks[m.pid], color: p.color, name: p.name });
+    this.cursors.set(m.pid, { x: m.x, y: m.y, rot: m.rot, type: this.picks[m.pid], color: p.color, name: p.name });
   }
   m_placed(m) {
     const it = m.item;
@@ -411,30 +410,18 @@ export class Game {
     const p = this.place;
     if (!p) return;
     const w = this.world;
-    if (ITEMS[p.type].pair) {
-      p.valid = p.a ? w.canPlace(p.type, p.a.x, p.a.y, 0, p.x, p.y) : w.cellFree(p.x, p.y);
-    } else p.valid = w.canPlace(p.type, p.x, p.y, p.rot);
+    p.valid = w.canPlace(p.type, p.x, p.y, p.rot);
   }
   confirmPlace() {
     const p = this.place;
     if (!p || p.done || this.phase !== 'place') return;
     if (!p.valid) { sfx('deny'); this.hud && this.hud.placeHint('여기에는 놓을 수 없어요!'); return; }
-    if (ITEMS[p.type].pair && !p.a) {
-      p.a = { x: p.x, y: p.y };
-      sfx('place');
-      this.validate();
-      this.hud && this.hud.placeHint(isTouch() ? '두 번째 텔레포터 위치를 정하고 [놓기]' : '두 번째 텔레포터 위치를 클릭');
-      return;
-    }
     p.done = true;
-    const msg = ITEMS[p.type].pair ? { t: 'placeReq', x: p.a.x, y: p.a.y, rot: 0, x2: p.x, y2: p.y } : { t: 'placeReq', x: p.x, y: p.y, rot: p.rot };
-    this.toHost(msg);
+    this.toHost({ t: 'placeReq', x: p.x, y: p.y, rot: p.rot });
   }
   placeView() {
     const p = this.place;
-    const mine = p && !p.done ? (ITEMS[p.type].pair
-      ? (p.a ? { type: p.type, x: p.a.x, y: p.a.y, rot: 0, x2: p.x, y2: p.y, id: 1, valid: p.valid } : { type: p.type, x: p.x, y: p.y, rot: 0, id: 1, valid: p.valid })
-      : { type: p.type, x: p.x, y: p.y, rot: p.rot, id: 1, valid: p.valid }) : null;
+    const mine = p && !p.done ? { type: p.type, x: p.x, y: p.y, rot: p.rot, id: 1, valid: p.valid } : null;
     return { mine, cursors: [...this.cursors.values()] };
   }
 
@@ -476,8 +463,7 @@ export class Game {
     if (inp.jumpP) this.confirmPlace();
     if (p.dirty && this.time - p.lastSent > 0.1 && this.online) {
       p.dirty = false; p.lastSent = this.time;
-      const c = ITEMS[p.type].pair && p.a ? { t: 'cursor', x: p.a.x, y: p.a.y, rot: 0, x2: p.x, y2: p.y } : { t: 'cursor', x: p.x, y: p.y, rot: p.rot };
-      this.toHost(c);
+      this.toHost({ t: 'cursor', x: p.x, y: p.y, rot: p.rot });
     }
   }
 
@@ -554,7 +540,6 @@ export class Game {
       if (ev & EV.LAND && b.fallV > 140) { this.particles.dust(b.x + 5, b.y + b.h, 4); if (local) sfx('land'); }
       if (ev & EV.DASH) { if (local) { sfx('dash'); } }
       if (ev & EV.SLIDE && local) sfx('slide');
-      if (ev & EV.TELE) { this.particles.burst(b.x + 5, b.y + 10, 12, '#d0a0ff', 60, 0.4, 1, 0); if (local) sfx('tele'); }
       if (ev & EV.BOUNCE) {
         const tx = Math.floor((b.x + 5) / TILE), ty = Math.floor((b.y + b.h + 2) / TILE);
         for (const it of this.world.items.values()) if (it.type === 'tramp' && Math.abs(it.x - tx) <= 1 && Math.abs(it.y - ty) <= 1) this.bounce.set(it.id, t + 0.15);

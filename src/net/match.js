@@ -133,9 +133,8 @@ export class Match {
     const type = this.picks[pid];
     const w = this.world;
     const { x, y, rot } = m;
-    if (!w.canPlace(type, x, y, rot, m.x2, m.y2)) { this.tx.sendTo(pid, { t: 'placeFail' }); return false; }
+    if (!w.canPlace(type, x, y, rot)) { this.tx.sendTo(pid, { t: 'placeFail' }); return false; }
     const item = { id: w.nextId++, type, x, y, rot, owner: pid };
-    if (ITEMS[type].pair) { item.x2 = m.x2; item.y2 = m.y2; }
     w.place(item);
     this.placed[pid] = true;
     this.tx.broadcast({ t: 'placed', item });
@@ -227,7 +226,7 @@ export class Match {
     switch (m.t) {
       case 'pickReq': this.doPick(pid, m.idx); break;
       case 'placeReq': this.doPlace(pid, m); break;
-      case 'cursor': if (this.phase === 'place') this.tx.broadcast({ t: 'cursor', pid, x: m.x, y: m.y, rot: m.rot, x2: m.x2, y2: m.y2 }, pid); break;
+      case 'cursor': if (this.phase === 'place') this.tx.broadcast({ t: 'cursor', pid, x: m.x, y: m.y, rot: m.rot }, pid); break;
       case 'fin': this.finishPlayer(pid, m.res); break;
       case 'emote': this.tx.broadcast({ t: 'emote', pid, e: String(m.e).slice(0, 4) }); break;
       case 'ready': p.ready = !!m.r; this.syncLobby(); break;

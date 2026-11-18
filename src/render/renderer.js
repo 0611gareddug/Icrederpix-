@@ -1,10 +1,10 @@
 // 화면 그리기
 import { SPR, tint, OL } from '../art/sprites.js';
 import { renderTerrain, makeBackground, THEMES } from '../art/terrain.js';
-import { rotated, flipped } from '../art/canvas.js';
+import { rotated, flipped, mkCanvas } from '../art/canvas.js';
 import { W, H, SF, DIRS } from '../engine/world.js';
 import { ITEMS, itemCells } from '../data/items.js';
-import { hsl, mod } from '../core/util.js';
+import { mod } from '../core/util.js';
 
 export const VH = 270;
 
@@ -19,7 +19,11 @@ export class Renderer {
     this.resize();
   }
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    // 픽셀아트라 고해상도가 필요 없음: 화면 픽셀 수를 약 FHD 이하로 제한해 채우기 비용을 줄인다
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const area = window.innerWidth * window.innerHeight * dpr * dpr;
+    const BUDGET = 1920 * 1080;
+    if (area > BUDGET) dpr *= Math.sqrt(BUDGET / area);
     const cw = Math.max(320, Math.round(window.innerWidth * dpr));
     const ch = Math.max(180, Math.round(window.innerHeight * dpr));
     if (this.canvas.width !== cw || this.canvas.height !== ch) { this.canvas.width = cw; this.canvas.height = ch; }
@@ -177,14 +181,6 @@ export class Renderer {
         ctx.drawImage(SPR.movplat, Math.round(r.x), Math.round(r.y));
         break;
       }
-      case 'teleporter': {
-        const col = hsl((it.id * 67) % 360, 90, 65);
-        const fr = Math.floor(t * 10) % 4;
-        const sp = tint(SPR.tele[fr], col);
-        ctx.drawImage(sp, X, Y);
-        if (it.x2 !== undefined) ctx.drawImage(sp, it.x2 * 16, it.y2 * 16);
-        break;
-      }
       case 'blackhole': {
         ctx.fillStyle = 'rgba(160,100,255,0.06)';
         ctx.beginPath(); ctx.arc(X + 8, Y + 8, 64, 0, Math.PI * 2); ctx.fill();
@@ -308,23 +304,25 @@ export class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
     for (let x = 1; x < W; x++) ctx.fillRect(x * 16, 0, 0.5, H * 16);
     for (let y = 1; y < H; y++) ctx.fillRect(0, y * 16, W * 16, 0.5);
-    ctx.fillStyle = 'rgba(255,60,60,0.22)';
-    for (let i = 0; i < W * H; i++) if (w.noBuild[i]) {
-      const x = (i % W) * 16, y = Math.floor(i / W) * 16;
-      ctx.fillRect(x, y, 16, 16);
+    if (this.nbWorld !== w) {
+      // 배치 금지 구역은 월드마다 한 번만 그려 둔다
+      const [c, cx] = mkCanvas(W * 16, H * 16);
+      cx.fillStyle = 'rgba(255,60,60,0.22)';
+      for (let i = 0; i < W * H; i++) if (w.noBuild[i]) cx.fillRect((i % W) * 16, Math.floor(i / W) * 16, 16, 16);
+      cx.fillStyle = 'rgba(255,60,60,0.35)';
+      for (let i = 0; i < W * H; i++) if (w.noBuild[i]) {
+        const x = (i % W) * 16, y = Math.floor(i / W) * 16;
+        for (let k = 0; k < 16; k += 4) cx.fillRect(x + k, y + 15 - k, 2, 1);
+      }
+      this.nbCanvas = c; this.nbWorld = w;
     }
-    ctx.fillStyle = 'rgba(255,60,60,0.35)';
-    for (let i = 0; i < W * H; i++) if (w.noBuild[i]) {
-      const x = (i % W) * 16, y = Math.floor(i / W) * 16;
-      for (let k = 0; k < 16; k += 4) ctx.fillRect(x + k, y + 15 - k, 2, 1);
-    }
+    ctx.drawImage(this.nbCanvas, 0, 0);
     const ghost = (g, alpha, col) => {
       if (!g || g.x === undefined || !g.type) return;
       ctx.globalAlpha = alpha;
       this.drawItemDyn(ctx, g, t, null, true);
       ctx.globalAlpha = 1;
       const cells = g.type === 'bomb' ? [[g.x, g.y]] : itemCells(g.type, g.x, g.y, g.rot);
-      if (g.x2 !== undefined) cells.push([g.x2, g.y2]);
       ctx.fillStyle = col;
       for (const [cx, cy] of cells) {
         ctx.fillRect(cx * 16, cy * 16, 16, 1); ctx.fillRect(cx * 16, cy * 16 + 15, 16, 1);

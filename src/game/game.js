@@ -65,7 +65,7 @@ export class Game {
     this.lastCount = -1;
     this.trapState = new Map();
     this.windWarned = false;
-    this.hud = this.demo ? null : new Hud({ online: this.online, onMenu: () => this.app.openGameMenu(this), onEmote: (e) => this.emote(e) });
+    this.hud = this.demo ? null : new Hud({ online: this.online, onMenu: () => this.app.openGameMenu(this), onEmote: (e) => this.emote(e), onChat: () => this.app.chat.open() });
     this.place = null;
     this.bindInput();
   }

@@ -19,6 +19,8 @@ const persona = () => PERSONA_KEYS[Math.floor(Math.random() * PERSONA_KEYS.lengt
 import { initTouch, showTouch } from './ui/touch.js';
 import { h, btn, modal, toast } from './ui/dom.js';
 import * as S from './ui/screens.js';
+import { Chat } from './ui/chat.js';
+import { SLOT_COLORS } from './data/cosmetics.js';
 import { protect } from './protect/protect.js';
 
 const BOT_NAMES = ['삐약봇', '깡총봇', '뚝딱봇', '번개봇', '쿵쾅봇', '말랑봇', '반짝봇', '휘익봇', '꿀꺽봇', '몽글봇'];
@@ -34,6 +36,9 @@ class App {
     this.lobby = null;
     this.acc = 0; this.last = now();
     this.soloSettings = { map: 'grass', length: 'normal', bots: 3, diff: 'normal' };
+    this.chat = new Chat((text) => this.sendChat(text));
+    this.chat.blockEnter = () => !!(this.game && this.game.phase === 'place' && this.game.place && !this.game.place.done);
+    this.chat.onOpen = (open) => { if (this.game && this.game.phase === 'run') showTouch(!open && isTouch()); };
     this.hostSettings = { map: 'random', length: 'normal', diff: 'normal', replace: true };
     window.addEventListener('resize', () => this.renderer.resize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.renderer.resize(), 200));
@@ -167,7 +172,26 @@ class App {
     if (m.t === 'ps') { if (this.game) this.game.onPs(pid, m.s); return; }
     if (this.match) this.match.handle(pid, m);
   }
+  sendChat(text) {
+    if (this.isHostRole && this.match) this.match.handle(this.localPid, { t: 'chat', text });
+    else if (this.client) this.client.send({ t: 'chat', text });
+  }
+  onChat(m) {
+    if (m.sys) { this.chat.add('', '', m.text, true); return; }
+    let color = '#fff';
+    const gp = this.game && this.game.players.get(m.pid);
+    if (gp) {
+      color = gp.color;
+      gp.emote = m.text.length > 12 ? m.text.slice(0, 12) + '…' : m.text;
+      gp.emoteT = 4;
+    } else if (this.lobby) {
+      const i = this.lobby.players.findIndex((p) => p.id === m.pid);
+      if (i >= 0) color = SLOT_COLORS[i % SLOT_COLORS.length];
+    }
+    this.chat.add(m.pid === this.localPid ? m.name + '(나)' : m.name, color, m.text);
+  }
   deliverLocal(m) {
+    if (m.t === 'chat') { this.onChat(m); return; }
     if (m.t === 'lobby') { this.showLobby(m); return; }
     if (m.t === 'start' && !this.game) this.beginNetGame();
     if (this.game) this.game.onMsg(m);
@@ -187,6 +211,8 @@ class App {
     this.lobby = null;
     this.setScreen(null);
     if (this.game) this.game.destroy();
+    this.chat.setMode('game');
+    document.body.classList.remove('lobby-chat-on');
     if (this.isHostRole) this.game = new Game(this, { mode: 'host', match: this.match, localPid: this.localPid });
     else this.game = new Game(this, { mode: 'client', localPid: this.localPid, send: (m) => this.client && this.client.send(m) });
   }
@@ -246,6 +272,7 @@ class App {
     }
   }
   onClientMsg(m) {
+    if (m.t === 'chat') { this.onChat(m); return; }
     if (m.t === 'lobby') { this.showLobby(m); return; }
     if (m.t === 'start') this.beginNetGame();
     if (this.game) this.game.onMsg(m);
@@ -256,12 +283,17 @@ class App {
     if (this.game) { this.game.destroy(); this.game = null; }
     if (!this.demo) this.startDemo();
     this.music('lobby');
+    const first = !this.lobby;
     this.lobby = m;
+    if (this.chat.mode !== 'lobby') { this.chat.setMode('lobby'); if (first && !this.chat.items.length) this.chat.add('', '', '채팅으로 대화해 보세요! (욕설은 자동으로 가려져요)', true); }
+    document.body.classList.add('lobby-chat-on');
     S.showLobby(this, m);
   }
 
   stopNet() {
     clearInterval(this.pingTimer);
+    this.chat.setMode('off');
+    document.body.classList.remove('lobby-chat-on');
     if (this.net) { this.net.destroy(); this.net = null; }
     if (this.client) { this.client.destroy(); this.client = null; }
     this.match = null; this.lobby = null; this.isHostRole = false; this.localPid = -1;

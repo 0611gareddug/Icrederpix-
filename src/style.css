@@ -298,3 +298,33 @@ input[type=range] { width: 100%; accent-color: var(--yellow); }
   .menu-btns .btn { min-height: 40px; padding: 0.35em 0.8em; }
   .me-card { padding: 0.6em 0.8em; gap: 0.35em; }
 }
+
+/* 채팅 */
+.chat { position: fixed; z-index: 30; display: flex; flex-direction: column; gap: 4px; pointer-events: none; font-size: 0.82em; }
+.chat .chat-form { display: flex; gap: 6px; pointer-events: auto; }
+.chat .chat-in { min-height: 2.2em; padding: 0.35em 0.6em; }
+.chat-log { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+.chat-line { background: rgba(14, 11, 24, 0.72); padding: 2px 7px; word-break: break-all; line-height: 1.35; transition: opacity 0.6s; align-self: flex-start; max-width: 100%; }
+.chat-line.sys { color: var(--yellow); }
+.chat-line.fade { opacity: 0; }
+.chat-game { left: calc(8px + var(--sal)); bottom: calc(12px + var(--sab)); width: min(46vw, 420px); }
+.chat-game .chat-log { max-height: 30vh; }
+.chat-game.open .chat-log { pointer-events: auto; background: rgba(14, 11, 24, 0.35); }
+.touch .chat-game { bottom: auto; top: 42%; }
+.chat-lobby { right: calc(14px + var(--sar)); bottom: calc(14px + var(--sab)); width: 330px; height: min(60vh, 420px); padding: 8px; background: var(--panel); box-shadow: 0 0 0 3px var(--ink); pointer-events: auto; }
+.chat-lobby .chat-log { flex: 1; pointer-events: auto; }
+body.lobby-chat-on .screen { padding-right: calc(360px + var(--sar)); }
+@media (max-width: 1100px) {
+  .chat-lobby { left: calc(10px + var(--sal)); right: calc(10px + var(--sar)); width: auto; height: 112px; bottom: calc(6px + var(--sab)); }
+  body.lobby-chat-on .screen { padding-right: calc(16px + var(--sar)); padding-bottom: calc(126px + var(--sab)); }
+}
+
+.chat-game { z-index: 4; }
+.chat-game.open { z-index: 30; }
+.chat-game:not(.open) .chat-line:not(:nth-last-child(-n+3)) { display: none; }
+.touch .chat-game { font-size: 0.68em; width: min(40vw, 320px); top: 30%; }
+.touch .chat-game.open { top: auto; bottom: calc(8px + var(--sab)); width: min(70vw, 520px); font-size: 0.8em; }
+@media (max-height: 520px) {
+  .chat-lobby { height: 92px; font-size: 0.72em; }
+  body.lobby-chat-on .screen { padding-bottom: calc(102px + var(--sab)); }
+}

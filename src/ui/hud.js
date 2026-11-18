@@ -18,7 +18,10 @@ export class Hud {
     this.top = h('div', { class: 'hud-top' }, h('div', { class: 'phase-box pix' }, this.phaseName, this.phaseTime));
     this.scores = h('div', { class: 'scores' });
     const right = h('div', { class: 'hud-right' });
-    if (opts.online) right.append(btn('💬', () => this.toggleEmotes(), 'iconbtn', { title: '이모티콘' }));
+    if (opts.online) {
+      right.append(btn('💬', () => opts.onChat && opts.onChat(), 'iconbtn', { title: '채팅 (Enter / T)' }));
+      right.append(btn('😀', () => this.toggleEmotes(), 'iconbtn', { title: '이모티콘' }));
+    }
     if (canFullscreen()) right.append(btn('⛶', () => toggleFullscreen(), 'iconbtn', { title: '전체 화면' }));
     right.append(btn('☰', () => opts.onMenu && opts.onMenu(), 'iconbtn', { title: '메뉴' }));
     this.layer = h('div', { style: { position: 'absolute', inset: '0' } });

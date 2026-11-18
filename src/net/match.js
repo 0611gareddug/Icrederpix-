@@ -4,6 +4,7 @@ import { World } from '../engine/world.js';
 import { makeBox, ITEMS } from '../data/items.js';
 import { MAP_KEYS } from '../data/maps.js';
 import { NavGraph } from '../ai/navgraph.js';
+import { filterText } from '../ui/chat.js';
 import { choosePlacement, pickScore, makeHeat, seedHeat, decayHeat, addHeat } from '../ai/placer.js';
 
 export const LENGTHS = {
@@ -243,6 +244,17 @@ export class Match {
       case 'cursor': if (this.phase === 'place') this.tx.broadcast({ t: 'cursor', pid, x: m.x, y: m.y, rot: m.rot }, pid); break;
       case 'fin': this.finishPlayer(pid, m.res); break;
       case 'emote': this.tx.broadcast({ t: 'emote', pid, e: String(m.e).slice(0, p.kind === 'bot' ? 10 : 4) }); break;
+      case 'chat': {
+        // 도배 방지: 0.7초 간격, 5초에 5개까지
+        const now = Date.now();
+        p.chatT = (p.chatT || []).filter((x) => now - x < 5000);
+        if (p.chatT.length >= 5 || (p.chatT.length && now - p.chatT[p.chatT.length - 1] < 700)) { this.tx.sendTo(pid, { t: 'chat', sys: true, text: '메시지를 너무 빨리 보내고 있어요.' }); break; }
+        const text = filterText(m.text);
+        if (!text) break;
+        p.chatT.push(now);
+        this.tx.broadcast({ t: 'chat', pid, name: p.name, text });
+        break;
+      }
       case 'coin': if (this.phase === 'run') this.coinN[pid] = Math.max(0, Math.min(20, m.n | 0)); break;
       case 'stomp': if (this.phase === 'run' && this.get(m.target) && !this.results[m.target]) this.tx.broadcast({ t: 'stomped', pid: m.target, by: pid }); break;
       case 'ready': p.ready = !!m.r; this.syncLobby(); break;

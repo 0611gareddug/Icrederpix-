@@ -46,7 +46,7 @@ export function showTitle(app) {
   const el = h('div', { class: 'screen title-screen', onclick: go },
     h('div', { class: 'logo' }, h('div', { class: 'en' }, 'TRAP BUILDERS'), h('div', { class: 'ko' }, '트랩빌더즈')),
     h('div', { class: 'press' }, isTouch() ? '화면을 터치해서 시작' : '아무 키나 눌러서 시작'),
-    h('div', { class: 'ver' }, 'v1.2'));
+    h('div', { class: 'ver' }, 'v1.3'));
   const tb = topbar();
   tb.addEventListener('click', (e) => e.stopPropagation());
   el.append(tb);

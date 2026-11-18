@@ -191,6 +191,8 @@ export class Game {
 
   m_place(m) {
     this.phase = 'place';
+    this.placeStart = this.time;
+    clearEdges();
     this.phaseLeft = m.dur;
     this.picks = m.picks;
     this.cursors.clear();
@@ -417,6 +419,7 @@ export class Game {
   confirmPlace() {
     const p = this.place;
     if (!p || p.done || this.phase !== 'place') return;
+    if (this.time - this.placeStart < 0.35) return; // 단계가 바뀌는 순간의 클릭/키 입력 무시
     if (!p.valid) { sfx('deny'); this.hud && this.hud.placeHint('여기에는 놓을 수 없어요!'); return; }
     p.done = true;
     this.toHost({ t: 'placeReq', x: p.x, y: p.y, rot: p.rot });
@@ -460,9 +463,10 @@ export class Game {
     const p = this.place;
     if (!p || p.done) return;
     if (takeEdge('rotate')) this.rotate();
-    if (takeEdge('confirm')) this.confirmPlace();
-    const inp = readInput(false);
-    if (inp.jumpP) this.confirmPlace();
+    // 위쪽 키(W/↑)는 커서 이동용이라 확정으로 쓰지 않음 (readInput(true))
+    const inp = readInput(true);
+    const conf = takeEdge('confirm') || inp.jumpP;
+    if (conf && this.time - this.placeStart > 0.35) this.confirmPlace();
     if (p.dirty && this.time - p.lastSent > 0.1 && this.online) {
       p.dirty = false; p.lastSent = this.time;
       this.toHost({ t: 'cursor', x: p.x, y: p.y, rot: p.rot });

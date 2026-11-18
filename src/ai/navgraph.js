@@ -243,6 +243,33 @@ export class NavGraph {
     this.ctg = ctg;
   }
 
+  // 출발점에서 골까지 최적 경로를 실제 물리로 따라가며 위치를 알려 준다 (AI 함정 배치용)
+  tracePath(cb) {
+    this.finish();
+    const w = this.world;
+    let id = this.nodeAtCell[w.spawnCell.y * W + w.spawnCell.x];
+    const seen = new Set();
+    while (id >= 0 && !seen.has(id) && this.ctg[id] < Infinity) {
+      seen.add(id);
+      const n = this.nodes[id];
+      let best = null, bc = Infinity;
+      for (const e of n.edges) {
+        const c = e.cost + (e.goal ? 0 : this.ctg[e.to]);
+        if (c < bc) { bc = c; best = e; }
+      }
+      if (!best) break;
+      const b = this.nodeBody(n);
+      const st = { x0: b.x + b.w / 2 };
+      for (let f = 0; f < 200; f++) {
+        step(b, polInput(best.p, f, b, st, w), w, 0, DT, 1);
+        if (f % 3 === 0) cb(b.x + b.w / 2, b.y + b.h / 2);
+        if (w.touchGoal(b) || (st.done && b.ground && Math.abs(b.vx) < 8)) break;
+      }
+      if (best.goal) break;
+      id = best.to;
+    }
+  }
+
   nodeAt(b) {
     const tx = Math.floor((b.x + b.w / 2) / TILE), ty = Math.floor((b.y + b.h - 1) / TILE);
     if (tx < 0 || tx >= W || ty < 0 || ty >= H) return -1;

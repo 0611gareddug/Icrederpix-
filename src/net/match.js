@@ -3,6 +3,7 @@ import { rng } from '../core/util.js';
 import { World } from '../engine/world.js';
 import { makeBox, ITEMS } from '../data/items.js';
 import { MAP_KEYS } from '../data/maps.js';
+import { NavGraph } from '../ai/navgraph.js';
 import { choosePlacement, pickScore, makeHeat, seedHeat, decayHeat, addHeat } from '../ai/placer.js';
 
 export const LENGTHS = {
@@ -68,7 +69,7 @@ export class Match {
     this.mapKey = mapKey;
     this.world = new World(mapKey);
     this.heat = makeHeat();
-    seedHeat(this.heat, this.world);
+    this.seedPathHeat();
     const L = LENGTHS[this.settings.length] || LENGTHS.normal;
     this.target = L.target; this.maxRounds = L.rounds;
     this.round = 0; this.overtime = false; this.lastFlag = null; this.frontier = null;
@@ -76,6 +77,16 @@ export class Match {
     this.tx.broadcast({ t: 'start', map: mapKey, target: this.target, maxRounds: this.maxRounds, players: this.publicPlayers() });
     this.phase = 'starting';
     this.timer = 0; this.phaseEnd = 1.2;
+  }
+
+  // 실제 최적 경로를 따라 열 지도를 채운다 (봇이 진짜 길목에 함정을 놓도록)
+  seedPathHeat() {
+    try {
+      const g = new NavGraph(this.world);
+      let n = 0;
+      g.tracePath((x, y) => { addHeat(this.heat, Math.floor(x / 16), Math.floor(y / 16), 0.5); n++; });
+      if (n < 5) seedHeat(this.heat, this.world);
+    } catch (e) { seedHeat(this.heat, this.world); }
   }
 
   // ---------- 상자 ----------
@@ -199,7 +210,8 @@ export class Match {
       p.stats.kills += g.kills / PTS.kill;
     }
     this.lastFlag = flag;
-    if (flag === 'fail') { /* 다음 라운드엔 봇이 길을 열어 준다 */ } else this.frontier = null;
+    if (flag !== 'fail') this.frontier = null;
+    if (flag === 'easy') this.seedPathHeat();
     this.phase = 'result';
     this.timer = 0; this.phaseEnd = PHASE_T.result; this.earlyEnd = 0;
     this.tx.broadcast({ t: 'result', gains, scores: this.players.map((p) => [p.id, p.score]), flag, round: this.round });

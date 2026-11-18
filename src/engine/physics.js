@@ -199,7 +199,8 @@ export function step(b, inp, world, t, dt, mode = 0) {
     else if (fy < 0) { b.vy = Math.max(b.vy - 1700 * dt, -190); b.noCut = true; if (b.ground) b.ground = false; }
     else b.vy = Math.min(b.vy + 900 * dt, P.MAX_FALL);
   }
-  for (const h of world.holes) {
+  const safe = world.inSafe(b);
+  for (const h of (safe ? [] : world.holes)) {
     const cx = h.x * TILE + 8, cy = h.y * TILE + 8;
     const dx = cx - (b.x + b.w / 2), dy = cy - (b.y + b.h / 2);
     const d = Math.hypot(dx, dy);

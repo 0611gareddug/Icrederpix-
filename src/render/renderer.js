@@ -79,6 +79,7 @@ export class Renderer {
     ctx.drawImage(this.terrain, 0, -16);
     const t = s.t;
     this.drawMapDyn(ctx, t, vx0, vx1);
+    this.drawSafe(ctx, t);
     this.drawGoal(ctx, t);
     this.drawDynamic(ctx, t, s);
     // 용암
@@ -139,6 +140,24 @@ export class Renderer {
       ctx.drawImage(SPR.crushHouse, X, Y);
     }
   }
+  // 출발 지점 보호막
+  drawSafe(ctx, t) {
+    const r = this.world.safeRect;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.5);
+    ctx.fillStyle = `rgba(120,200,255,${0.07 + pulse * 0.04})`;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = `rgba(160,225,255,${0.45 + pulse * 0.25})`;
+    // 점선 테두리 (위·좌·우)
+    for (let x = r.x; x < r.x + r.w; x += 6) ctx.fillRect(x + (Math.floor(t * 8) % 6), r.y, 3, 1);
+    for (let y = r.y; y < r.y + r.h; y += 6) { ctx.fillRect(r.x, y + (Math.floor(t * 8) % 6), 1, 3); ctx.fillRect(r.x + r.w - 1, y + (Math.floor(t * 8) % 6), 1, 3); }
+    // 방패 아이콘
+    const cx = r.x + r.w / 2, cy = r.y + 7;
+    ctx.fillStyle = `rgba(160,225,255,${0.6 + pulse * 0.3})`;
+    ctx.fillRect(cx - 4, cy - 4, 9, 6); ctx.fillRect(cx - 3, cy + 2, 7, 2); ctx.fillRect(cx - 1, cy + 4, 3, 1);
+    ctx.fillStyle = 'rgba(30,60,110,0.8)';
+    ctx.fillRect(cx, cy - 3, 1, 6); ctx.fillRect(cx - 2, cy - 1, 5, 1);
+  }
+
   // 모래폭풍 화면 효과 (화면 좌표)
   drawStorm(t) {
     const w = this.world;

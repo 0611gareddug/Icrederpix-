@@ -48,6 +48,13 @@ export class World {
     this.spawn = { x: this.spawnCell.x * TILE + 8, y: (this.spawnCell.y + 1) * TILE };
     const g = this.goalCell;
     this.goalRect = { x: g.x * TILE + 3, y: g.y * TILE - 14, w: 10, h: 30 };
+    // 출발 지점 보호 구역: 이 안에서는 모든 공격이 막히고 발사체도 멈춰요
+    const sc = this.spawnCell;
+    this.safeRect = { x: (sc.x - 2) * TILE, y: (sc.y - 3) * TILE, w: 5 * TILE, h: 6 * TILE };
+    this.safeCell = new Uint8Array(W * H);
+    for (let y = sc.y - 3; y <= sc.y + 2; y++)
+      for (let x = sc.x - 2; x <= sc.x + 2; x++)
+        if (x >= 0 && y >= 0 && x < W && y < H) this.safeCell[y * W + x] = 1;
     this.noBuild = new Uint8Array(W * H);
     for (const c of [this.spawnCell, this.goalCell]) {
       for (let y = c.y - 3; y <= c.y + 2; y++)
@@ -160,7 +167,7 @@ export class World {
     let cx = x + dx, cy = y + dy;
     while (n < max) {
       if (cx < 0 || cx >= W || cy >= H || cy < -2) break;
-      if (cy >= 0 && this.solid[cy * W + cx] === S_SOLID) break;
+      if (cy >= 0 && (this.solid[cy * W + cx] === S_SOLID || this.safeCell[cy * W + cx])) break;
       n++; cx += dx; cy += dy;
     }
     return n;
@@ -310,6 +317,7 @@ export class World {
       const top = staticOnly ? this.lavaBase - 16 : this.lavaTop(t);
       if (by + bh > top + 5) return ENV_KILL;
     }
+    if (this.inSafe(b)) return undefined;
     for (const it of this.spikes) {
       const x = it.x * TILE, y = it.y * TILE;
       let r;
@@ -376,6 +384,11 @@ export class World {
       if (rectsOverlap(bx, by, bw, bh, ic.x * TILE + 5, ic.y * TILE + s.y, 6, 11)) return ENV_KILL;
     }
     return undefined;
+  }
+
+  inSafe(b) {
+    const r = this.safeRect, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    return cx >= r.x && cx < r.x + r.w && cy >= r.y && cy < r.y + r.h;
   }
 
   touchGoal(b) {

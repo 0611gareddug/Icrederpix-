@@ -1,0 +1,18 @@
+{
+  "name": "trap-builders",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build/build.mjs",
+    "dev": "node build/build.mjs --dev"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "javascript-obfuscator": "4.1.1",
+    "galmuri": "2.40.3"
+  },
+  "dependencies": {
+    "peerjs": "1.5.4"
+  }
+}

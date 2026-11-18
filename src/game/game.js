@@ -13,6 +13,8 @@ import { OL } from '../art/sprites.js';
 import { readInput, takeEdge, clearEdges } from '../core/input.js';
 import { sfx, playMusic } from '../core/audio.js';
 import { save, persist, claimDaily } from '../core/save.js';
+import { addXp, checkAch, xpNeed, MAX_LEVEL } from '../data/progress.js';
+import { PTS } from '../net/match.js';
 import { Hud } from '../ui/hud.js';
 import { showTouch } from '../ui/touch.js';
 import { vibrate } from '../ui/dom.js';
@@ -137,6 +139,7 @@ export class Game {
 
   m_start(m) {
     this.world = new World(m.map);
+    this.mapKey = m.map;
     this.world.onCrumble = (i, cloud) => this.fxCrumble(i, cloud);
     this.world.onMineArm = (it) => { if (!this.demo && this.isVisible({ x: it.x * TILE, y: it.y * TILE, w: 16, h: 16 })) sfx('charge'); };
     this.world.onMineBoom = (it) => this.fxMine(it);
@@ -149,7 +152,7 @@ export class Game {
       const slot = p.slot ?? i;
       const color = SLOT_COLORS[slot % SLOT_COLORS.length];
       const ol = colorCount[p.look.color] > 1 ? shade(color, -0.25) : OL;
-      this.players.set(p.id, { id: p.id, name: p.name, look: p.look, kind: p.kind, diff: p.diff, slot, color, ol, score: 0, body: null, st: 'idle', buf: [], ghosts: [], emote: null, emoteT: 0, connected: true });
+      this.players.set(p.id, { id: p.id, name: p.name, title: p.title || '', look: p.look, kind: p.kind, diff: p.diff, slot, color, ol, score: 0, body: null, st: 'idle', buf: [], ghosts: [], emote: null, emoteT: 0, connected: true });
     });
     this.order = [...this.players.keys()];
     this.phase = 'intro';
@@ -238,6 +241,7 @@ export class Game {
 
   m_run(m) {
     this.phase = 'run';
+    this.lastSurvivorLocal = false;
     this.runT = 0; this.cd = m.cd; this.dur = m.dur;
     this.phaseLeft = m.cd + m.dur;
     this.place = null; this.cursors.clear();
@@ -292,6 +296,16 @@ export class Game {
     if (!p) return;
     const res = m.res;
     const prev = p.st;
+    if (!this.demo && this.localPid >= 0) {
+      if (m.pid === this.localPid && res.goal) {
+        if (res.order === 1) save.stats.firstGoals++;
+        if (this.lastSurvivorLocal) save.stats.lastSurvivorGoals++;
+      }
+      if (res.dead && res.killer > 0 && m.pid !== this.localPid) {
+        const it = this.world.items.get(res.killer);
+        if (it && it.owner === this.localPid && it.type === 'mine') save.stats.mineKills++;
+      }
+    }
     p.st = res.goal ? 'goal' : res.out ? 'out' : res.timeout ? 'out' : 'dead';
     if (!p.fx && prev === 'run') {
       p.fx = true;
@@ -307,7 +321,7 @@ export class Game {
       const runners = [...this.players.values()].filter((q) => q.st === 'run');
       if (runners.length === 1 && this.players.size > 1 && !this.lastSurvivor) {
         this.lastSurvivor = true;
-        if (runners[0].id === this.localPid) { this.hud.banner('마지막 생존자!', '끝까지 가 보세요!', 1600); sfx('charge'); }
+        if (runners[0].id === this.localPid) { this.lastSurvivorLocal = true; this.hud.banner('마지막 생존자!', '끝까지 가 보세요!', 1600); sfx('charge'); }
         else this.hud.sub(`⚡ ${runners[0].name} 혼자 남았어요!`, 2200);
       }
     }
@@ -322,6 +336,7 @@ export class Game {
     for (const id of this.order) {
       const p = this.players.get(id);
       const g = m.gains[id] || { goal: 0, kills: 0 };
+      if (id === this.localPid && !this.demo) save.stats.bestRoundKills = Math.max(save.stats.bestRoundKills, Math.round(g.kills / PTS.kill));
       const before = p.score;
       const sc = m.scores.find((s) => s[0] === id);
       p.score = sc ? sc[1] : before + g.goal + g.kills;
@@ -340,7 +355,8 @@ export class Game {
     for (const [id, sc] of m.scores) { const p = this.players.get(id); if (p) p.score = sc; }
     if (this.demo) { this.phaseLeft = 3; return; }
     const sorted = this.order.map((id) => this.players.get(id)).sort((a, b) => b.score - a.score);
-    const podium = sorted.slice(0, 3).map((p) => ({ name: p.name, color: p.color, look: p.look, score: p.score }));
+    const podium = sorted.slice(0, 3).map((p) => ({ name: p.name, title: p.title, color: p.color, look: p.look, score: p.score }));
+    let xpText = '';
     const won = m.winners.includes(this.localPid);
     const coinLines = [];
     if (this.localPid >= 0) {
@@ -354,12 +370,18 @@ export class Game {
       save.coins += total;
       save.stats.matches++; if (won) save.stats.wins++;
       save.stats.goals += st.goals; save.stats.kills += st.kills;
+      if (won) save.stats.mapWins[this.mapKey] = true;
+      if (this.online) save.stats.online++;
+      const xp = 20 + st.goals * 10 + st.kills * 6 + (won ? 40 : 0);
+      for (const r of addXp(save, xp)) coinLines.push([r.label, r.coins]);
+      for (const r of checkAch(save)) coinLines.push([r.label, r.coins]);
+      xpText = save.level >= MAX_LEVEL ? `경험치 +${xp} · Lv.${save.level} (최고 레벨)` : `경험치 +${xp} · Lv.${save.level} (${save.xp}/${xpNeed(save.level)})`;
       persist();
     }
     const winNames = m.winners.map((id) => this.players.get(id)?.name).join(', ');
     const title = m.winners.length > 1 ? `🤝 공동 우승: ${winNames}` : won ? '🏆 우승했어요!' : `🏆 ${winNames} 우승!`;
     const buttons = this.app.endButtons(this);
-    this.hud.showEnd(podium, coinLines, buttons, title);
+    this.hud.showEnd(podium, coinLines, buttons, title, xpText);
     sfx(won ? 'win' : 'lose');
     if (won) for (let i = 0; i < 6; i++) setTimeout(() => this.fxConfetti(), i * 300);
   }
@@ -516,11 +538,11 @@ export class Game {
       // 바람 예고
       if (this.world.hasWind) {
         const wd = this.world.wind(t);
-        if (wd.warn && !this.windWarned) { this.windWarned = true; if (this.hud) this.hud.sub(wd.dir > 0 ? '💨 바람 주의! →' : '💨 ← 바람 주의!', 1200); }
+        if (wd.warn && !this.windWarned) { this.windWarned = true; if (this.hud) this.hud.sub(wd.sand ? '🌪️ ← 모래폭풍이 와요!' : wd.dir > 0 ? '💨 바람 주의! →' : '💨 ← 바람 주의!', 1200); }
         if (!wd.warn && !wd.active) this.windWarned = false;
         if (wd.active && this.frame % 2 === 0) {
           const v = this.viewRect();
-          this.particles.spawn(wd.dir > 0 ? v.x0 : v.x1, v.y0 + Math.random() * (v.y1 - v.y0), wd.dir * (260 + Math.random() * 120), 0, 1.6, 'rgba(255,255,255,0.6)', 1, 0);
+          this.particles.spawn(wd.dir > 0 ? v.x0 : v.x1, v.y0 + Math.random() * (v.y1 - v.y0), wd.dir * (260 + Math.random() * 120), 0, 1.6, wd.sand ? 'rgba(240,200,120,0.8)' : 'rgba(255,255,255,0.6)', wd.sand ? 2 : 1, 0);
         }
         if (wd.active && !this.windSfx) { this.windSfx = true; if (!this.demo) sfx('wind'); }
         if (!wd.active) this.windSfx = false;
@@ -775,7 +797,7 @@ export class Game {
         const isMe = p.id === this.localPid;
         bodies.push({
           img: d.img, dx: d.dx, dy: d.dy, crouch: d.h < 20, ghosts: p.ghosts,
-          name: this.demo ? null : this.online ? (isMe ? '나' : p.name) : isMe ? '나' : null,
+          name: this.demo ? null : this.online ? (isMe ? '나' : (p.title ? `「${p.title}」` : '') + p.name) : isMe ? '나' : null,
           slotColor: p.color, emote: p.emote, me: isMe,
         });
       }

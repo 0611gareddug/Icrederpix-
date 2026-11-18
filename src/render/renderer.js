@@ -2,7 +2,7 @@
 import { SPR, tint, OL } from '../art/sprites.js';
 import { renderTerrain, makeBackground, THEMES } from '../art/terrain.js';
 import { rotated, flipped, mkCanvas } from '../art/canvas.js';
-import { W, H, SF, DIRS } from '../engine/world.js';
+import { W, H, SF, DIRS, T_CONV_R, T_CONV_L } from '../engine/world.js';
 import { ITEMS, itemCells } from '../data/items.js';
 import { mod } from '../core/util.js';
 
@@ -78,6 +78,7 @@ export class Renderer {
     const vx0 = cam.x, vy0 = cam.y, vx1 = cam.x + this.viewW / cam.z, vy1 = cam.y + this.viewH / cam.z;
     ctx.drawImage(this.terrain, 0, -16);
     const t = s.t;
+    this.drawMapDyn(ctx, t, vx0, vx1);
     this.drawGoal(ctx, t);
     this.drawDynamic(ctx, t, s);
     // 용암
@@ -86,6 +87,7 @@ export class Renderer {
     for (const b of s.bodies) this.drawBody(ctx, b, t);
     s.particles.draw(ctx, vx0, vy0, vx1, vy1);
     if (s.place) this.drawPlacement(ctx, s.place, t);
+    this.drawStorm(t);
     // 화면 좌표: 이름표
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (s.names) {
@@ -111,6 +113,49 @@ export class Renderer {
         const sx = (c.x * 16 + 16) * k + ox, sy = (c.y * 16 - 6) * k + oy;
         ctx.fillStyle = c.color; ctx.fillText(c.name, Math.round(sx), Math.round(sy));
       }
+    }
+  }
+
+  // 맵 고유 요소 (공장 컨베이어/프레스)
+  drawMapDyn(ctx, t, vx0, vx1) {
+    const w = this.world;
+    if (!w.convCells) {
+      w.convCells = [];
+      for (let i = 0; i < W * H; i++) { const tt = w.terrain[i]; if (tt === T_CONV_R || tt === T_CONV_L) w.convCells.push([i % W, Math.floor(i / W), tt === T_CONV_R]); }
+    }
+    if (w.convCells.length) {
+      const fr = Math.floor(t * 14) % 4;
+      for (const [x, y, right] of w.convCells) {
+        if (x * 16 < vx0 - 16 || x * 16 > vx1) continue;
+        ctx.drawImage((right ? SPR.conv : this.extra.convL)[fr], x * 16, y * 16);
+      }
+    }
+    for (const pr of w.presses) {
+      const st = w.crusherState(pr, t);
+      const X = pr.x * 16, Y = pr.y * 16;
+      const jx = st.shake ? (Math.floor(t * 40) % 2 ? 1 : -1) : 0;
+      if (st.d > 1) { ctx.fillStyle = '#8a94a8'; ctx.fillRect(X + 5, Y + 12, 6, st.d); ctx.fillStyle = '#5a6276'; ctx.fillRect(X + 7, Y + 12, 2, st.d); }
+      ctx.drawImage(SPR.crushHead, X + jx, Y + st.d);
+    }
+  }
+  // 모래폭풍 화면 효과 (화면 좌표)
+  drawStorm(t) {
+    const w = this.world;
+    if (!w || !w.storm) return;
+    const wd = w.wind(t);
+    let a = 0;
+    if (wd.active) { const p = wd.p - 7; a = Math.min(1, p * 2, (4 - p) * 2); }
+    if (a <= 0) return;
+    const ctx = this.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = `rgba(222,170,96,${0.5 * a})`;
+    ctx.fillRect(0, 0, this.cw, this.ch);
+    ctx.fillStyle = `rgba(255,230,170,${0.55 * a})`;
+    const S = this.S;
+    for (let k = 0; k < 60; k++) {
+      const x = mod(k * 137 - t * 600, this.cw + 40) - 20;
+      const y = (k * 71) % this.ch;
+      ctx.fillRect(Math.round(x), y, Math.round(10 * S), Math.max(1, Math.round(S * 0.6)));
     }
   }
 

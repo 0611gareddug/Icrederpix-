@@ -1,5 +1,6 @@
 // 기기 저장 (localStorage) — 실패해도 게임은 동작
 import { defaultLook, sanitizeLook, SHOP_TABS } from '../data/cosmetics.js';
+import { defaultStats } from '../data/progress.js';
 
 const KEY = 'trapbuilders.v1';
 export const DEFAULT_KEYS = {
@@ -15,8 +16,9 @@ function fresh() {
     look: defaultLook(),
     settings: { music: 0.6, sfx: 0.8, shake: true, vibrate: true, btnSize: 1, btnAlpha: 0.55, keys: JSON.parse(JSON.stringify(DEFAULT_KEYS)) },
     lastDaily: '',
-    stats: { matches: 0, wins: 0, goals: 0, kills: 0 },
+    stats: defaultStats(),
     seenHelp: false,
+    xp: 0, level: 1, ach: {}, title: '',
   };
 }
 
@@ -33,6 +35,10 @@ export const save = (() => {
       d.look = sanitizeLook(d.look);
       for (const t of SHOP_TABS) if (!d.owned[t.key].includes(d.look[t.key])) d.look[t.key] = 0;
       d.coins = Math.max(0, Math.floor(+d.coins || 0));
+      d.stats = Object.assign(defaultStats(), p.stats || {});
+      d.level = Math.max(1, Math.min(50, Math.floor(+d.level || 1)));
+      d.xp = Math.max(0, Math.floor(+d.xp || 0));
+      d.ach = d.ach && typeof d.ach === 'object' ? d.ach : {};
     }
   } catch (e) { /* 저장 불가 환경 */ }
   return d;

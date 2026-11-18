@@ -125,6 +125,7 @@ export function step(b, inp, world, t, dt, mode = 0) {
   } else {
     let max = b.crouch ? P.CROUCH : P.RUN;
     if (surf === SF.STICKY) max *= 0.4;
+    else if (surf === SF.SAND) max *= 0.7;
     let mx = inp.mx;
     if (b.lock > 0 && sign(mx) === b.lockDir) mx *= 0.2;
     if (b.ground && (surf === SF.BOOST_R || surf === SF.BOOST_L)) {
@@ -156,7 +157,9 @@ export function step(b, inp, world, t, dt, mode = 0) {
     if (b.vy < 0 && !b.held && !b.noCut) g *= 3;
     if (b.vy >= 0) b.noCut = false;
     if (inGrav) g *= 0.42;
-    b.vy = Math.min(b.vy + g * dt, inGrav ? 130 : P.MAX_FALL);
+    const gs = world.gravScale;
+    g *= gs;
+    b.vy = Math.min(b.vy + g * dt, inGrav ? 130 : gs < 1 ? P.MAX_FALL * 0.6 : P.MAX_FALL);
     // 벽 미끄러짐
     if (!b.ground && b.wall !== 0 && b.wallOk && sign(inp.mx) === b.wall && b.vy > P.WALL_SLIDE) {
       b.vy = P.WALL_SLIDE; b.ev |= EV.WALL;
@@ -185,7 +188,7 @@ export function step(b, inp, world, t, dt, mode = 0) {
   }
   if (full && world.hasWind && !b.climb) {
     const wd = world.wind(t);
-    if (wd.active) exDx += wd.dir * P.WIND * dt;
+    if (wd.active) exDx += wd.dir * (wd.sand ? 46 : P.WIND) * dt;
   }
   for (const f of world.fans) {
     if (f.ray <= 0) continue;

@@ -9,7 +9,7 @@ const BASE_POLICIES = (() => {
   for (const H of [4, 10, 20]) L.push({ k: 'jump', H, d: 0, D: 0, dl: 0 });
   for (const H of [4, 10, 20]) for (const d of [-1, 1]) for (const D of [6, 14, 24, 999]) L.push({ k: 'jump', H, d, D, dl: 0 });
   for (const d of [-1, 1]) L.push({ k: 'jump', H: 20, d, D: 999, dl: 10 });
-  for (const d of [-1, 1]) for (const F of [8, 16]) for (const dy of [0, -1]) L.push({ k: 'jdash', d, F, dy });
+  for (const d of [-1, 1]) for (const F of [8, 16, 30, 44]) for (const dy of [0, -1]) L.push({ k: 'jdash', d, F, dy });
   for (const d of [-1, 1]) for (const D of [10, 999]) L.push({ k: 'gdash', d, D });
   for (const d of [-1, 1]) { L.push({ k: 'wall', d, n: 3, cross: false }); L.push({ k: 'wall', d, n: 1, cross: true }); }
   return L;

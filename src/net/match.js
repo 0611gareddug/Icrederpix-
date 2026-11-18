@@ -56,7 +56,7 @@ export class Match {
   get(pid) { return this.players.find((p) => p.id === pid); }
   active() { return this.players.filter((p) => p.connected); }
   publicPlayers() {
-    return this.players.map((p) => ({ id: p.id, name: p.name, look: p.look, kind: p.kind, diff: p.diff, ready: p.ready, ping: p.ping, score: p.score, connected: p.connected, slot: p.slot }));
+    return this.players.map((p) => ({ id: p.id, name: p.name, title: p.title || '', look: p.look, kind: p.kind, diff: p.diff, ready: p.ready, ping: p.ping, score: p.score, connected: p.connected, slot: p.slot }));
   }
   syncLobby() {
     this.players.forEach((p, i) => { p.slot = i; });

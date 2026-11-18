@@ -170,14 +170,14 @@ export class Hud {
   }
   hideResult() { if (this.resEl) { this.resEl.remove(); this.resEl = null; } }
 
-  showEnd(podium, coinLines, buttons, title) {
+  showEnd(podium, coinLines, buttons, title, xpText) {
     this.hideResult(); this.hidePick(); this.hidePlace(); this.hideSpectate();
     const pods = h('div', { class: 'podium' });
     const order = [1, 0, 2];
     for (const i of order) {
       const p = podium[i];
       if (!p) continue;
-      pods.append(h('div', { class: 'pod p' + (i + 1) }, h('div', { style: { color: p.color, fontSize: '0.85em' } }, p.name), charCanvas(p.look, 3, i === 0 ? 'win0' : 'idle0'), h('div', { class: 'step pix' }, `${i + 1}`), h('div', { class: 'dim', style: { fontSize: '0.8em' } }, p.score + '점')));
+      pods.append(h('div', { class: 'pod p' + (i + 1) }, p.title ? h('div', { class: 'dim', style: { fontSize: '0.7em' } }, `「${p.title}」`) : null, h('div', { style: { color: p.color, fontSize: '0.85em' } }, p.name), charCanvas(p.look, 3, i === 0 ? 'win0' : 'idle0'), h('div', { class: 'step pix' }, `${i + 1}`), h('div', { class: 'dim', style: { fontSize: '0.8em' } }, p.score + '점')));
     }
     const coins = h('div', { class: 'coinlist' });
     let total = 0;
@@ -185,6 +185,7 @@ export class Hud {
     if (coinLines.length) coins.append(h('b', null, '합계'), h('b', { class: 'coin' }, '+' + total));
     this.endEl = h('div', { class: 'result' }, h('div', { class: 'resbox pix', style: { textAlign: 'center' } },
       h('h3', null, title), pods, coinLines.length ? coins : null,
+      xpText ? h('div', { class: 'dim', style: { fontSize: '0.8em', marginBottom: '0.8em' } }, xpText) : null,
       h('div', { class: 'row', style: { justifyContent: 'center' } }, buttons.map((b) => btn(b.label, b.onClick, b.cls || '')))));
     this.layer.append(this.endEl);
   }

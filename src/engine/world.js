@@ -5,8 +5,8 @@ import { MAPS } from '../data/maps.js';
 
 export const W = 72, H = 20;
 export const S_NONE = 0, S_SOLID = 1, S_ONEWAY = 2, S_LADTOP = 3;
-export const SF = { NONE: 0, ICE: 1, STICKY: 2, CONV_L: 3, CONV_R: 4, TRAMP_U: 5, TRAMP_R: 6, TRAMP_L: 7, CRUMBLE: 8, WOOD: 9, TERRAIN: 10, CLOUD: 11, BOOST_R: 12, BOOST_L: 13, GHOST: 14, POISON: 15, STONE: 16 };
-export const T_EMPTY = 0, T_SOLID = 1, T_ONEWAY = 2, T_ICE = 3, T_LAVA = 4;
+export const SF = { NONE: 0, ICE: 1, STICKY: 2, CONV_L: 3, CONV_R: 4, TRAMP_U: 5, TRAMP_R: 6, TRAMP_L: 7, CRUMBLE: 8, WOOD: 9, TERRAIN: 10, CLOUD: 11, BOOST_R: 12, BOOST_L: 13, GHOST: 14, POISON: 15, STONE: 16, SAND: 17 };
+export const T_EMPTY = 0, T_SOLID = 1, T_ONEWAY = 2, T_ICE = 3, T_LAVA = 4, T_CONV_R = 5, T_CONV_L = 6, T_SAND = 7, T_PRESS = 8;
 export const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 export const ENV_KILL = -1;
 
@@ -21,6 +21,7 @@ export class World {
     this.theme = def.theme;
     this.terrain = new Uint8Array(W * H);
     this.icicles = [];
+    this.presses = [];
     this.lavaBase = -1;
     for (let y = 0; y < H; y++) {
       const row = def.rows[y];
@@ -34,10 +35,16 @@ export class World {
         else if (c === 'S') this.spawnCell = { x, y };
         else if (c === 'G') this.goalCell = { x, y };
         else if (c === 'v') this.icicles.push({ x, y });
+        else if (c === '>') this.terrain[i] = T_CONV_R;
+        else if (c === '<') this.terrain[i] = T_CONV_L;
+        else if (c === 's') this.terrain[i] = T_SAND;
+        else if (c === 'P') { this.terrain[i] = T_PRESS; this.presses.push({ x, y, phase: this.presses.length * 1.1 + 0.3, ray: 0 }); }
       }
     }
     this.hasLava = this.lavaBase >= 0;
-    this.hasWind = def.theme === 'sky';
+    this.hasWind = def.theme === 'sky' || def.theme === 'desert';
+    this.storm = def.theme === 'desert';
+    this.gravScale = def.gravity || 1;
     this.spawn = { x: this.spawnCell.x * TILE + 8, y: (this.spawnCell.y + 1) * TILE };
     const g = this.goalCell;
     this.goalRect = { x: g.x * TILE + 3, y: g.y * TILE - 14, w: 10, h: 30 };
@@ -72,6 +79,9 @@ export class World {
       else if (t === T_ONEWAY) { solid[i] = S_ONEWAY; surf[i] = SF.TERRAIN; occ[i] = -2; }
       else if (t === T_ICE) { solid[i] = S_SOLID; surf[i] = SF.ICE; occ[i] = -2; }
       else if (t === T_LAVA) { occ[i] = -2; }
+      else if (t === T_CONV_R || t === T_CONV_L) { solid[i] = S_SOLID; surf[i] = t === T_CONV_R ? SF.CONV_R : SF.CONV_L; occ[i] = -2; }
+      else if (t === T_SAND) { solid[i] = S_SOLID; surf[i] = SF.SAND; occ[i] = -2; }
+      else if (t === T_PRESS) { solid[i] = S_SOLID; surf[i] = SF.TERRAIN; occ[i] = -2; }
     }
     for (const ic of this.icicles) occ[ic.y * W + ic.x] = -2;
     this.spikes = []; this.saws = []; this.arrows = []; this.flames = [];
@@ -128,6 +138,7 @@ export class World {
     for (const it of this.fans) it.ray = this.ray(it.x, it.y, it.rot, 5) * TILE;
     for (const it of this.cannons) it.ray = this.ray(it.x, it.y, it.rot, 24) * TILE;
     for (const it of this.crushers) it.ray = Math.min(4, this.ray(it.x, it.y, 2, 4)) * TILE;
+    for (const pr of this.presses) pr.ray = Math.min(6, this.ray(pr.x, pr.y, 2, 6)) * TILE;
     for (const it of this.items.values()) if (it.phase === undefined) it.phase = phaseOf(it.id, it.type);
     // AI용 정적 위험 칸
     this.hazCell = new Uint8Array(W * H);
@@ -198,6 +209,11 @@ export class World {
   }
   wind(t) {
     if (!this.hasWind) return null;
+    if (this.storm) {
+      // 모래폭풍: 12초 주기, 1초 예고 후 4초 동안 왼쪽으로 밀어요
+      const p = mod(t, 12);
+      return { dir: -1, active: p >= 7 && p < 11, warn: p >= 6 && p < 7, p, sand: true };
+    }
     const p = mod(t, 8);
     const dir = Math.floor(t / 8) % 2 ? -1 : 1;
     return { dir, active: p >= 4 && p < 7, warn: p >= 3 && p < 4, p };
@@ -315,6 +331,10 @@ export class World {
     for (const it of this.sawrails) {
       const p = this.sawRailPos(it, t);
       if (circleRect(p.x, p.y, 6.5, bx, by, bw, bh)) return it.id;
+    }
+    for (const pr of this.presses) {
+      const st = this.crusherState(pr, t);
+      if (st.d > 2 && rectsOverlap(bx, by, bw, bh, pr.x * TILE + 1, pr.y * TILE + st.d, 14, 16)) return ENV_KILL;
     }
     for (const it of this.crushers) {
       const st = this.crusherState(it, t);

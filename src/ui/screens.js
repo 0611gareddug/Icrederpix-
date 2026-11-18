@@ -12,6 +12,7 @@ import { applyTouchSettings } from './touch.js';
 import { isTouch } from '../core/util.js';
 import { normCode } from '../net/net.js';
 import { ITEMS } from '../data/items.js';
+import { ACH, titleOf, xpNeed, MAX_LEVEL, checkAch } from '../data/progress.js';
 
 let timers = [], hooks = [];
 export function cleanup() {
@@ -46,7 +47,7 @@ export function showTitle(app) {
   const el = h('div', { class: 'screen title-screen', onclick: go },
     h('div', { class: 'logo' }, h('div', { class: 'en' }, 'TRAP BUILDERS'), h('div', { class: 'ko' }, '트랩빌더즈')),
     h('div', { class: 'press' }, isTouch() ? '화면을 터치해서 시작' : '아무 키나 눌러서 시작'),
-    h('div', { class: 'ver' }, 'v1.3'));
+    h('div', { class: 'ver' }, 'v1.4'));
   const tb = topbar();
   tb.addEventListener('click', (e) => e.stopPropagation());
   el.append(tb);
@@ -65,18 +66,28 @@ export function showMenu(app) {
   const card = h('div', { class: 'me-card pix' },
     h('div', { class: 'title-text menu-logo' }, 'TRAP BUILDERS'),
     prev,
+    titleOf(save) ? h('div', { class: 'dim', style: { fontSize: '0.8em', marginBottom: '-0.4em' } }, `「${titleOf(save)}」`) : null,
     h('div', { class: 'me-name' }, nameEl, btn('✏', () => editName(() => { nameEl.textContent = save.name; }), 'small', { title: '닉네임 바꾸기' })),
+    levelBar(),
     h('div', { class: 'coin' }, String(save.coins)));
   const btns = h('div', { class: 'menu-btns' },
     btn([h('span', { class: 'ico' }, '▶'), '혼자 하기'], () => showSolo(app), 'primary'),
     btn([h('span', { class: 'ico' }, '👥'), '방 만들기'], () => app.createRoom()),
     btn([h('span', { class: 'ico' }, '🔑'), '방 참가'], () => showJoin(app)),
     btn([h('span', { class: 'ico' }, '🎨'), '꾸미기 상점'], () => showShop(app)),
+    btn([h('span', { class: 'ico' }, '🏅'), '업적'], () => showAchievements(app)),
     btn([h('span', { class: 'ico' }, '⚙'), '설정'], () => showSettings(app)),
+    btn([h('span', { class: 'ico' }, '🎓'), '연습하기'], () => app.startTutorial()),
     btn([h('span', { class: 'ico' }, '❓'), '조작법 · 규칙'], () => showHelp(app)));
   const el = h('div', { class: 'screen dim-bg' }, h('div', { class: 'menu-wrap' }, card, btns), topbar());
   setScreen(app, el);
-  if (!save.seenHelp) { save.seenHelp = true; persist(); setTimeout(() => showHelpModal(), 300); }
+  if (!save.seenHelp) {
+    save.seenHelp = true; persist();
+    setTimeout(() => modal('👋 처음이신가요?', h('div', { class: 'col' }, h('div', null, '1분짜리 연습 코스에서 점프, 대시, 벽 점프, 배치를 배울 수 있어요.'), h('div', { class: 'dim', style: { fontSize: '0.85em' } }, '완주하면 칭호 「새싹」과 코인을 받아요! 메뉴의 [연습하기]에서 언제든 다시 할 수 있어요.')), [
+      { label: '조작법만 볼게요', onClick: () => { setTimeout(() => showHelpModal(), 50); } },
+      { label: '연습하기!', cls: 'primary', onClick: () => app.startTutorial() },
+    ]), 300);
+  }
 }
 
 function editName(done) {
@@ -108,7 +119,10 @@ export function mapThumb(key) {
   x.fillStyle = g; x.fillRect(0, 0, 144, 60);
   m.rows.forEach((row, y) => [...row].forEach((ch, xx) => {
     let col = null;
-    if (ch === '#') col = y > 0 && m.rows[y - 1][xx] !== '#' && m.rows[y - 1][xx] !== 'I' ? th.top : th.fill;
+    if (ch === '#') col = y > 0 && !'#I><sP'.includes(m.rows[y - 1][xx]) ? th.top : th.fill;
+    else if (ch === '>' || ch === '<') col = '#6a6f7c';
+    else if (ch === 'P') col = '#ffd23f';
+    else if (ch === 's') col = '#f6dc94';
     else if (ch === 'I') col = '#bfeaff';
     else if (ch === '=') col = th.plat;
     else if (ch === 'L') col = '#ff6a00';
@@ -186,7 +200,7 @@ export function showLobby(app, m) {
     else if (p.kind === 'bot') tags.push(h('span', { class: 'tag' }, '봇 · ' + ({ easy: '쉬움', normal: '보통', hard: '어려움' }[p.diff] || '보통')));
     else tags.push(h('span', { class: 'tag ' + (p.ready ? 'ok' : '') }, p.ready ? '준비 완료' : '준비 중'));
     if (p.kind === 'remote' && p.ping) tags.push(h('span', { class: 'tag', style: { color: p.ping > 300 ? '#ffd23f' : '' } }, p.ping + 'ms'));
-    const row = h('div', { class: 'pitem' }, h('span', { class: 'slotdot', style: { background: color } }), charCanvas(sanitizeLook(p.look), 2), h('span', { class: 'nm', style: { color } }, p.name + (p.id === app.localPid ? ' (나)' : '')), ...tags);
+    const row = h('div', { class: 'pitem' }, h('span', { class: 'slotdot', style: { background: color } }), charCanvas(sanitizeLook(p.look), 2), h('span', { class: 'nm', style: { color } }, p.title ? h('span', { class: 'dim', style: { fontSize: '0.8em' } }, `「${p.title}」`) : null, p.name + (p.id === app.localPid ? ' (나)' : '')), ...tags);
     if (host && p.kind !== 'local') row.append(btn('✕', () => app.removeLobbyPlayer(p.id), 'small red', { title: p.kind === 'bot' ? '봇 빼기' : '내보내기' }));
     list.append(row);
   });
@@ -248,7 +262,20 @@ export function showShop(app, tab = 'color') {
   const renderTab = () => {
     tabs.innerHTML = '';
     for (const t of SHOP_TABS) tabs.append(btn(t.name, () => { tab = t.key; previewLook = Object.assign({}, save.look); renderTab(); }, tab === t.key ? 'on' : ''));
+    tabs.append(btn('칭호', () => { tab = 'title'; renderTab(); }, tab === 'title' ? 'on' : ''));
     grid.innerHTML = '';
+    if (tab === 'title') {
+      const opts = [{ id: '', title: '없음' }].concat(ACH.filter((a) => a.title));
+      for (const a of opts) {
+        const owned = !a.id || save.ach[a.id];
+        const on = save.title === a.id || (!a.id && !titleOf(save));
+        grid.append(btn([h('div', { style: { fontSize: '1.1em', minHeight: '1.6em' } }, a.id ? `「${a.title}」` : '—'), h('div', { class: 'price dim' }, on ? '사용 중' : owned ? '보유' : `🔒 ${a.desc}`)], () => {
+          if (!owned) { toast(`업적 「${a.name}」을 달성하면 얻어요: ${a.desc}`); sfx('deny'); return; }
+          save.title = a.id; persist(); renderTab();
+        }, 'shop-item ' + (on ? 'equipped' : owned ? '' : 'locked')));
+      }
+      return;
+    }
     const T = SHOP_TABS.find((t) => t.key === tab);
     T.list.forEach((item, i) => {
       const owned = save.owned[tab].includes(i);
@@ -264,7 +291,7 @@ export function showShop(app, tab = 'color') {
         if (save.coins < item.price) { toast(`코인이 부족해요 (${item.price - save.coins} 더 필요)`); sfx('deny'); return; }
         modal('구매할까요?', h('div', null, `${item.name} — `, h('span', { class: 'coin' }, String(item.price))), [
           { label: '취소', onClick: () => { previewLook = Object.assign({}, save.look); } },
-          { label: '구매하고 착용', cls: 'primary', onClick: () => { save.coins -= item.price; save.owned[tab].push(i); save.look[tab] = i; persist(); sfx('buy'); coinEl.textContent = String(save.coins); previewLook = Object.assign({}, save.look); renderTab(); } },
+          { label: '구매하고 착용', cls: 'primary', onClick: () => { save.coins -= item.price; save.owned[tab].push(i); save.look[tab] = i; save.stats.buys++; for (const r of checkAch(save)) toast(`${r.label} +${r.coins}코인`, 3500); persist(); sfx('buy'); coinEl.textContent = String(save.coins); previewLook = Object.assign({}, save.look); renderTab(); } },
         ]);
       }, 'shop-item ' + (equipped ? 'equipped' : owned ? '' : 'locked'));
       grid.append(b);
@@ -276,6 +303,38 @@ export function showShop(app, tab = 'color') {
       h('div', { class: 'dim', style: { fontSize: '0.72em', textAlign: 'center' } }, '코인과 꾸미기는 이 기기(브라우저)에만 저장돼요.'),
       btn('돌아가기', () => showMenu(app))),
     h('div', { class: 'shop-main' }, tabs, grid)), topbar());
+  setScreen(app, el);
+}
+
+// ---------- 레벨 바 ----------
+function levelBar() {
+  const max = save.level >= MAX_LEVEL;
+  const pct = max ? 100 : Math.round((save.xp / xpNeed(save.level)) * 100);
+  return h('div', { style: { width: '100%', fontSize: '0.75em' } },
+    h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('span', null, `Lv.${save.level}`), h('span', { class: 'dim' }, max ? 'MAX' : `${save.xp}/${xpNeed(save.level)}`)),
+    h('div', { style: { height: '0.6em', background: '#0e0b18', boxShadow: '0 0 0 2px var(--line)', marginTop: '0.25em' } }, h('div', { style: { height: '100%', width: pct + '%', background: 'var(--yellow)' } })));
+}
+
+// ---------- 업적 ----------
+export function showAchievements(app) {
+  const done = ACH.filter((a) => save.ach[a.id]).length;
+  const list = h('div', { class: 'ach-list' });
+  for (const a of ACH) {
+    const got = !!save.ach[a.id];
+    const v = Math.min(a.need, a.v(save.stats, save) || 0);
+    list.append(h('div', { class: 'ach pix' + (got ? ' got' : '') },
+      h('div', { class: 'ach-ico' }, got ? '🏅' : '🔒'),
+      h('div', { class: 'ach-main' },
+        h('div', null, a.name, a.title ? h('span', { class: 'dim', style: { fontSize: '0.8em' } }, `  칭호 「${a.title}」`) : null),
+        h('div', { class: 'dim', style: { fontSize: '0.8em' } }, a.desc),
+        h('div', { class: 'ach-bar' }, h('i', { style: { width: (v / a.need) * 100 + '%' } }))),
+      h('div', { class: 'ach-side' }, h('div', { class: 'coin', style: { fontSize: '0.85em' } }, String(a.coins)), h('div', { class: 'dim', style: { fontSize: '0.75em' } }, got ? '달성!' : `${v}/${a.need}`))));
+  }
+  const el = h('div', { class: 'screen dark' }, h('div', { class: 'panel pix', style: { width: 'min(94vw, 760px)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100% - 8px)' } },
+    h('div', { class: 'row', style: { alignItems: 'flex-end' } }, h('h2', { style: { margin: 0 } }, '🏅 업적'), h('span', { class: 'dim' }, `${done}/${ACH.length} 달성`), h('div', { class: 'spacer' }), h('div', { style: { width: '12em' } }, levelBar())),
+    h('div', { class: 'dim', style: { fontSize: '0.75em', margin: '0.5em 0' } }, '칭호는 꾸미기 상점의 [칭호] 탭에서 바꿀 수 있어요.'),
+    list,
+    h('div', { class: 'row', style: { justifyContent: 'flex-end', marginTop: '0.8em' } }, btn('돌아가기', () => showMenu(app), 'primary'))), topbar());
   setScreen(app, el);
 }
 

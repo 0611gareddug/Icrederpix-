@@ -8,10 +8,12 @@ import { save, persist } from './core/save.js';
 import { buildSprites } from './art/sprites.js';
 import { Renderer } from './render/renderer.js';
 import { Game } from './game/game.js';
+import { TutorialGame } from './game/tutorial.js';
 import { Match, MAX_PLAYERS } from './net/match.js';
 import { HostNet, ClientNet, normCode } from './net/net.js';
 import { MAP_KEYS } from './data/maps.js';
 import { COLORS, HATS, FACES, BACKS, sanitizeLook } from './data/cosmetics.js';
+import { titleOf, cleanTitle } from './data/progress.js';
 import { initTouch, showTouch } from './ui/touch.js';
 import { h, btn, modal, toast } from './ui/dom.js';
 import * as S from './ui/screens.js';
@@ -102,11 +104,21 @@ class App {
     this.setScreen(null);
     const tx = { broadcast: (m) => this.game && this.game.onMsg(m), sendTo: (pid, m) => this.game && this.game.onMsg(m) };
     const match = new Match({ map: st.map, length: st.length }, tx);
-    const me = match.addPlayer({ name: save.name, kind: 'local', look: sanitizeLook(save.look) });
+    const me = match.addPlayer({ name: save.name, title: titleOf(save), kind: 'local', look: sanitizeLook(save.look) });
     const names = shuffle(BOT_NAMES.slice());
     for (let i = 0; i < st.bots; i++) match.addPlayer({ name: names[i], kind: 'bot', diff: st.diff, look: randomLook() });
     this.game = new Game(this, { mode: 'solo', match, localPid: me.id });
     match.start();
+  }
+
+  // ---------------- 연습 코스 ----------------
+  startTutorial() {
+    closeModals();
+    this.exitGameOnly();
+    this.stopNet();
+    this.stopDemo();
+    this.setScreen(null);
+    this.game = new TutorialGame(this);
   }
 
   // ---------------- 온라인: 방장 ----------------
@@ -131,7 +143,7 @@ class App {
         sendTo: (pid, m) => { if (pid === this.localPid) this.deliverLocal(m); else net.send(pid, m); },
       };
       this.match = new Match(Object.assign({}, this.hostSettings), tx);
-      const me = this.match.addPlayer({ name: save.name, kind: 'local', look: sanitizeLook(save.look) });
+      const me = this.match.addPlayer({ name: save.name, title: titleOf(save), kind: 'local', look: sanitizeLook(save.look) });
       this.localPid = me.id;
       this.isHostRole = true;
       this.pingTimer = setInterval(() => { net.ping(); if (this.match && this.match.phase === 'lobby') this.match.syncLobby(); }, 2000);
@@ -146,7 +158,7 @@ class App {
     if (M.players.length >= MAX_PLAYERS) return { reject: '방이 가득 찼어요. (최대 6명)' };
     let name = String(m.name || '플레이어').slice(0, 10);
     if (M.players.some((p) => p.name === name)) name = name.slice(0, 8) + (M.players.length + 1);
-    const p = M.addPlayer({ name, kind: 'remote', look: sanitizeLook(m.look) });
+    const p = M.addPlayer({ name, title: cleanTitle(m.title), kind: 'remote', look: sanitizeLook(m.look) });
     return { pid: p.id };
   }
   onHostMsg(pid, m) {
@@ -190,6 +202,16 @@ class App {
     if (p.kind === 'remote') this.net.kick(pid);
     M.removePlayer(pid);
   }
+  // 같은 멤버·같은 설정으로 바로 새 판
+  rematch() {
+    const M = this.match;
+    if (!M) return;
+    M.players = M.players.filter((p) => p.connected);
+    if (M.players.length < 2) { toast('함께할 사람이 없어요. 대기실에서 봇을 추가해 주세요.'); this.backToLobby(); return; }
+    M.phase = 'lobby';
+    this.beginNetGame();
+    M.start();
+  }
   backToLobby() {
     if (!this.match) return;
     if (this.game) { this.game.destroy(); this.game = null; }
@@ -212,7 +234,7 @@ class App {
     });
     this.client = c;
     try {
-      const pid = await c.connect(code, { t: 'hello', name: save.name, look: sanitizeLook(save.look) });
+      const pid = await c.connect(code, { t: 'hello', name: save.name, title: titleOf(save), look: sanitizeLook(save.look) });
       if (this.client !== c) return;
       this.localPid = pid;
       this.isHostRole = false;
@@ -246,7 +268,7 @@ class App {
   // ---------------- 게임 메뉴 / 종료 ----------------
   openGameMenu(g) {
     if (document.querySelector('.modal')) return;
-    const solo = g.mode === 'solo';
+    const solo = g.mode === 'solo' || g.mode === 'tutorial';
     if (solo) g.paused = true;
     const resume = () => { g.paused = false; clearEdges(); this.last = now(); };
     modal(solo ? '일시정지' : '메뉴', h('div', { class: 'col' },
@@ -263,9 +285,10 @@ class App {
     ];
     if (g.mode === 'host') return [
       { label: '나가기', onClick: () => this.exitToMenu() },
-      { label: '대기실로', cls: 'primary', onClick: () => this.backToLobby() },
+      { label: '대기실로', onClick: () => this.backToLobby() },
+      { label: '🔁 다시 하기', cls: 'primary', onClick: () => this.rematch() },
     ];
-    return [{ label: '나가기', onClick: () => this.exitToMenu() }, { label: '방장을 기다리는 중...', cls: '', onClick: () => toast('방장이 대기실로 돌아가면 자동으로 이동해요.') }];
+    return [{ label: '나가기', onClick: () => this.exitToMenu() }, { label: '방장을 기다리는 중...', cls: '', onClick: () => toast('방장이 [다시 하기]나 [대기실로]를 누르면 자동으로 이동해요.') }];
   }
   exitGameOnly() { if (this.game) { this.game.destroy(); this.game = null; } }
   exitToMenu() {

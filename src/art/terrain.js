@@ -1,7 +1,7 @@
 // 지형 타일과 배경 (테마별)
 import { mkCanvas, px } from './canvas.js';
 import { hash2, rng } from '../core/util.js';
-import { W, H, T_SOLID, T_ONEWAY, T_ICE, T_LAVA } from '../engine/world.js';
+import { W, H, T_SOLID, T_ONEWAY, T_ICE, T_LAVA, T_CONV_R, T_CONV_L, T_SAND, T_PRESS } from '../engine/world.js';
 import { SPR } from './sprites.js';
 
 export const THEMES = {
@@ -17,6 +17,18 @@ export const THEMES = {
     sky: ['#1a0606', '#3a0e0a', '#5e1a10'], fill: '#5e2a2a', dark: '#3a1616', light: '#7e3c38', speck: '#4a2020',
     top: '#8a5a52', topD: '#5e3a34', topL: '#b07a6a', plat: '#7a4a3a', platD: '#4a2a20', ui: '#ff7a3a',
   },
+  factory: {
+    sky: ['#1c2230', '#2e3648', '#46506a'], fill: '#4a5266', dark: '#2a303e', light: '#6a748c', speck: '#3a4152',
+    top: '#8a94a8', topD: '#5a6276', topL: '#c8d0e0', plat: '#c8a040', platD: '#806020', ui: '#ffd23f',
+  },
+  desert: {
+    sky: ['#e8884a', '#f8c070', '#fde8b0'], fill: '#c08848', dark: '#8a5a28', light: '#dca868', speck: '#a87238',
+    top: '#f0d080', topD: '#c8a050', topL: '#fff0b8', plat: '#b07840', platD: '#704820', ui: '#f0c060',
+  },
+  space: {
+    sky: ['#04020c', '#100828', '#24124a'], fill: '#56567a', dark: '#34344e', light: '#76769a', speck: '#46465e',
+    top: '#a8a8c8', topD: '#6e6e90', topL: '#dcdcf0', plat: '#8a8ab0', platD: '#4a4a6a', ui: '#b08aff',
+  },
   sky: {
     sky: ['#3a2f7a', '#b05a9a', '#ffb07a'], fill: '#7a5a96', dark: '#563e72', light: '#9a7ab6', speck: '#6a4c86',
     top: '#7be06a', topD: '#4fae4a', topL: '#b8f59a', plat: '#f0e8ff', platD: '#b8a8d8', ui: '#ff9ab8',
@@ -31,11 +43,18 @@ function isT(world, x, y, set) {
 
 function drawSolidCell(ctx, th, theme, world, x, y) {
   const X = x * 16, Y = y * 16;
-  const solidSet = [T_SOLID, T_ICE];
+  const solidSet = [T_SOLID, T_ICE, T_SAND, T_PRESS, T_CONV_R, T_CONV_L];
   const up = isT(world, x, y - 1, solidSet), dn = isT(world, x, y + 1, solidSet);
   const lf = isT(world, x - 1, y, solidSet), rt = isT(world, x + 1, y, solidSet);
   const ice = world.terrain[y * W + x] === T_ICE;
-  if (theme === 'lava') {
+  if (theme === 'factory') {
+    // 금속 패널
+    px(ctx, X, Y, th.fill, 16, 16);
+    px(ctx, X, Y, th.light, 16, 1); px(ctx, X, Y, th.light, 1, 16);
+    px(ctx, X + 15, Y, th.dark, 1, 16); px(ctx, X, Y + 15, th.dark, 16, 1);
+    px(ctx, X + 2, Y + 2, th.speck, 2, 2); px(ctx, X + 12, Y + 2, th.speck, 2, 2); px(ctx, X + 2, Y + 12, th.speck, 2, 2); px(ctx, X + 12, Y + 12, th.speck, 2, 2);
+    if (hash2(x, y, 5) > 0.75) { for (let k = 0; k < 4; k++) px(ctx, X + 4 + k * 2, Y + 5 + k, '#ffd23f', 2, 1); }
+  } else if (theme === 'lava') {
     // 벽돌
     px(ctx, X, Y, th.fill, 16, 16);
     const off = (y % 2) * 8;
@@ -58,7 +77,13 @@ function drawSolidCell(ctx, th, theme, world, x, y) {
   if (!rt) px(ctx, X + 15, Y, th.dark, 1, 16);
   if (!dn) px(ctx, X, Y + 15, th.dark, 16, 1);
   if (!up) {
-    if (ice) {
+    if (theme === 'factory') {
+      px(ctx, X, Y, th.top, 16, 3); px(ctx, X, Y, th.topL, 16, 1); px(ctx, X, Y + 3, th.dark, 16, 1);
+      for (let k = 0; k < 16; k += 4) px(ctx, X + k, Y + 1, th.topD, 2, 1);
+    } else if (world.terrain[y * W + x] === T_SAND) {
+      px(ctx, X, Y, '#f6dc94', 16, 6); px(ctx, X, Y, '#fff4c8', 16, 1); px(ctx, X, Y + 6, '#d8b060', 16, 1);
+      for (let i = 0; i < 5; i++) px(ctx, X + Math.floor(hash2(x, y, i + 60) * 15), Y + 2 + (i % 3), '#e0bc70', 1, 1);
+    } else if (ice) {
       px(ctx, X, Y, '#bfeaff', 16, 5); px(ctx, X, Y, '#ffffff', 16, 1); px(ctx, X, Y + 5, '#6bbbe8', 16, 1);
       px(ctx, X + 3, Y + 2, '#ffffff', 3, 1);
     } else {
@@ -89,7 +114,9 @@ export function renderTerrain(world, canvas) {
   ctx.translate(0, 16); // 위로 튀어나온 풀 장식 공간
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const t = world.terrain[y * W + x];
-    if (t === T_SOLID || t === T_ICE) drawSolidCell(ctx, th, world.theme, world, x, y);
+    if (t === T_SOLID || t === T_ICE || t === T_SAND) drawSolidCell(ctx, th, world.theme, world, x, y);
+    else if (t === T_PRESS) ctx.drawImage(SPR.crushHouse, x * 16, y * 16);
+    else if (t === T_CONV_R || t === T_CONV_L) { /* 움직이는 벨트라 매 프레임 그림 */ }
     else if (t === T_ONEWAY) {
       const X = x * 16, Y = y * 16;
       if (world.theme === 'sky') {
@@ -159,6 +186,16 @@ export function makeBackground(theme) {
   } else if (theme === 'ice') {
     mk(200, (ctx, h) => { stalag(ctx, h, r, '#1a2650', '#22306a'); }, 0.2, 1);
     mk(160, (ctx, h) => { crystals(ctx, h, r); }, 0.4, 1);
+  } else if (theme === 'factory') {
+    mk(200, (ctx, h) => factoryBg(ctx, h, r, '#141a26', '#1e2636', false), 0.2, 1);
+    mk(150, (ctx, h) => factoryBg(ctx, h, r, '#222a3a', '#2c3548', true), 0.4, 1);
+  } else if (theme === 'desert') {
+    mk(150, (ctx, h) => { pyramids(ctx, h, r); }, 0.15, 1);
+    mk(110, (ctx, h) => { hills(ctx, h, '#e0a860', 46, 2, r); cacti(ctx, h, r); }, 0.4, 1);
+  } else if (theme === 'space') {
+    mk(256, (ctx, h) => stars(ctx, h, r), 0.05, 0);
+    mk(200, (ctx, h) => planet(ctx, h, r), 0.12, 0);
+    mk(120, (ctx, h) => asteroids(ctx, h, r), 0.35, 1);
   } else if (theme === 'lava') {
     mk(180, (ctx, h) => { castle(ctx, h, r, '#2e0c0a', '#3e140e'); }, 0.2, 1);
     mk(120, (ctx, h) => { castle(ctx, h, r, '#4a1810', '#5e2014', true); }, 0.4, 1);
@@ -219,5 +256,51 @@ function castle(ctx, h, r, c1, c2, near) {
     if (near) for (let k = 0; k < 3; k++) px(ctx, x + 6 + Math.floor(r() * (w - 12)), h - th + 10 + k * 14, '#ff8a3a', 3, 5);
     px(ctx, x + w - 2, h - th, c2, 2, th);
     x += w + Math.floor(r() * 20);
+  }
+}
+
+function factoryBg(ctx, h, r, c1, c2, near) {
+  let x = 0;
+  while (x < 512) {
+    const w = 24 + Math.floor(r() * 40), th = 40 + Math.floor(r() * (h - 50));
+    px(ctx, x, h - th, c1, w, th);
+    if (r() > 0.5) { px(ctx, x + w / 2 - 3, h - th - 30, c1, 6, 30); if (near) px(ctx, x + w / 2 - 3, h - th - 34, '#3a4458', 6, 4); }
+    if (near) for (let k = 0; k < 3; k++) px(ctx, x + 4 + Math.floor(r() * (w - 8)), h - th + 8 + k * 12, '#ffd23f55', 4, 3);
+    px(ctx, x, h - th, c2, w, 2);
+    x += w + Math.floor(r() * 16);
+  }
+  for (let k = 0; k < 3; k++) { const y = 20 + Math.floor(r() * (h - 80)); px(ctx, 0, y, c2, 512, 3); }
+}
+function pyramids(ctx, h, r) {
+  for (let i = 0; i < 4; i++) {
+    const cx = 40 + i * 120 + Math.floor(r() * 40), ph = 40 + Math.floor(r() * 50);
+    for (let k = 0; k < ph; k++) { px(ctx, cx - k, h - ph + k, '#d89a58', k, 1); px(ctx, cx, h - ph + k, '#c0844a', k, 1); }
+  }
+}
+function cacti(ctx, h, r) {
+  for (let i = 0; i < 7; i++) {
+    const x = Math.floor(r() * 500), ch = 14 + Math.floor(r() * 14);
+    px(ctx, x, h - 20 - ch, '#5a9a4a', 4, ch); px(ctx, x - 4, h - 14 - ch, '#5a9a4a', 4, 3); px(ctx, x - 4, h - 20 - ch, '#5a9a4a', 2, 6);
+    px(ctx, x + 4, h - 10 - ch, '#5a9a4a', 4, 3); px(ctx, x + 6, h - 16 - ch, '#5a9a4a', 2, 6);
+  }
+}
+function stars(ctx, h, r) {
+  for (let i = 0; i < 120; i++) px(ctx, Math.floor(r() * 512), Math.floor(r() * h), r() > 0.85 ? '#ffffff' : r() > 0.5 ? '#a8a8d8' : '#6a6a9a', r() > 0.92 ? 2 : 1, 1);
+}
+function planet(ctx, h, r) {
+  const cx = 360, cy = 70, R = 34;
+  for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {
+    const d = Math.hypot(x, y);
+    if (d > R) continue;
+    const band = Math.floor((y + R) / 9) % 2;
+    px(ctx, cx + x, cy + y, x + y < -20 ? (band ? '#e0a0ff' : '#c080e8') : band ? '#a060d0' : '#8048b0');
+  }
+  for (let x = -56; x <= 56; x++) px(ctx, cx + x, cy + Math.round(x * 0.18), '#ffd8a0', 1, 2);
+  px(ctx, 120, 40, '#7ad4ff', 8, 8); px(ctx, 121, 41, '#bfeaff', 3, 3);
+}
+function asteroids(ctx, h, r) {
+  for (let i = 0; i < 9; i++) {
+    const x = Math.floor(r() * 490), y = 10 + Math.floor(r() * (h - 30)), s = 4 + Math.floor(r() * 10);
+    px(ctx, x, y, '#3a3a56', s, s); px(ctx, x + 1, y + 1, '#4a4a6a', Math.max(1, s - 4), 2);
   }
 }

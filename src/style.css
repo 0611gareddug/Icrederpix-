@@ -281,3 +281,19 @@ input[type=range] { width: 100%; accent-color: var(--yellow); }
   .seg .btn { min-height: 36px; padding: 0.25em 0.6em; }
   .lobby .map-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* 업적 */
+.ach-list { overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(17em, 1fr)); gap: 0.7em; padding: 4px; min-height: 0; flex: 1 1 auto; }
+.ach { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0.6em; background: var(--panel2); opacity: 0.8; }
+.ach.got { opacity: 1; background: #2e3a2a; }
+.ach-ico { font-size: 1.5em; }
+.ach-main { flex: 1; min-width: 0; font-size: 0.9em; }
+.ach-side { text-align: right; min-width: 3.5em; }
+.ach-bar { height: 0.45em; background: #0e0b18; margin-top: 0.3em; }
+.ach-bar i { display: block; height: 100%; background: var(--yellow); }
+
+@media (max-height: 520px) {
+  .menu-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; min-width: 0; }
+  .menu-btns .btn { min-height: 40px; padding: 0.35em 0.8em; }
+  .me-card { padding: 0.6em 0.8em; gap: 0.35em; }
+}

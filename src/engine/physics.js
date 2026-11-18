@@ -3,10 +3,10 @@ import { TILE, approach, sign, rectsOverlap } from '../core/util.js';
 import { S_SOLID, S_ONEWAY, S_LADTOP, SF, W } from './world.js';
 
 export const P = {
-  G: 900, JUMP_V: 317, MAX_FALL: 288, RUN: 96, CROUCH: 48,
+  G: 900, JUMP_V: 275, MAX_FALL: 288, RUN: 96, CROUCH: 48,
   ACC_G: 1200, DEC_G: 1600, ACC_A: 900, DEC_A: 520,
-  WALL_SLIDE: 48, WJ_VX: 170, WJ_VY: 290, WJ_LOCK: 0.15,
-  DASH_V: 320, DASH_T: 0.15, DASH_CD: 0.6,
+  WALL_SLIDE: 48, WJ_VX: 170, WJ_VY: 255, WJ_LOCK: 0.15,
+  DASH_V: 270, DASH_T: 0.13, DASH_CD: 0.6,
   COYOTE: 0.1, BUFFER: 0.1, SLIDE_T: 0.4,
   STAND_H: 20, CROUCH_H: 12, BW: 10,
   TRAMP_V: 380, TRAMP_SIDE: 300, CLIMB: 80, CONV: 48, WIND: 58,
@@ -104,7 +104,7 @@ export function step(b, inp, world, t, dt, mode = 0) {
     if (b.crouch && !setCrouch(world, b, false)) { dy = 0; if (!dx) dx = b.face; }
     if (!b.crouch) {
       const n = Math.hypot(dx, dy);
-      b.dvx = (dx / n) * P.DASH_V; b.dvy = (dy / n) * P.DASH_V;
+      b.dvx = (dx / n) * P.DASH_V; b.dvy = (dy / n) * P.DASH_V * (dy < 0 ? 0.7 : 1);
       b.dash = P.DASH_T; b.dashCd = P.DASH_CD; b.slide = 0;
       if (!b.ground) b.airDash = true;
       b.ground = false; b.coyote = 0;

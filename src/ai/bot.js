@@ -5,8 +5,8 @@ import { polInput, blankInput } from './navgraph.js';
 import { W } from '../engine/world.js';
 
 export const BOT_CFG = {
-  easy:   { react: [16, 34], err: 0.24, jitter: 4, skip: 0.35, waitMax: 0.8, leapAfter: 6 },
-  normal: { react: [7, 16],  err: 0.07, jitter: 2, skip: 0.08, waitMax: 2.2, leapAfter: 9 },
+  easy:   { react: [18, 36], err: 0.4, jitter: 6, skip: 0.35, waitMax: 0.8, leapAfter: 6 },
+  normal: { react: [8, 18],  err: 0.16, jitter: 3, skip: 0.08, waitMax: 2.2, leapAfter: 9 },
   hard:   { react: [2, 6],   err: 0.0,  jitter: 0, skip: 0,    waitMax: 4.0, leapAfter: 12 },
 };
 

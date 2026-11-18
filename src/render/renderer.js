@@ -136,6 +136,7 @@ export class Renderer {
       const jx = st.shake ? (Math.floor(t * 40) % 2 ? 1 : -1) : 0;
       if (st.d > 1) { ctx.fillStyle = '#8a94a8'; ctx.fillRect(X + 5, Y + 12, 6, st.d); ctx.fillStyle = '#5a6276'; ctx.fillRect(X + 7, Y + 12, 2, st.d); }
       ctx.drawImage(SPR.crushHead, X + jx, Y + st.d);
+      ctx.drawImage(SPR.crushHouse, X, Y);
     }
   }
   // 모래폭풍 화면 효과 (화면 좌표)
@@ -390,6 +391,7 @@ export class Renderer {
         const jx = st.shake ? (Math.floor(t * 40) % 2 ? 1 : -1) : 0;
         if (st.d > 1) { ctx.fillStyle = '#6a7080'; ctx.fillRect(X + 7, Y + 12, 2, st.d); }
         ctx.drawImage(SPR.crushHead, X + jx, Y + st.d);
+        ctx.drawImage(SPR.crushHouse, X, Y); // 머리는 몸통 안에서 나오도록 몸통을 위에 그림
         break;
       }
       case 'poison': ctx.drawImage(SPR.poison[Math.floor(t * 4) % 3], X, Y); break;
